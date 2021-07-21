@@ -14,7 +14,29 @@ module Q = QSafeCapped
 module Z = ZSafe
 open SatUnsat
 
-type operand = LiteralOperand of IntLit.t | AbstractValueOperand of Var.t
+type function_symbol = Unknown of Var.t | Procname of Procname.t
+[@@deriving compare, equal, yojson_of]
+
+let pp_function_symbol fmt = function
+  | Unknown v ->
+      Var.pp fmt v
+  | Procname proc_name ->
+      Procname.pp fmt proc_name
+
+
+type operand =
+  | LiteralOperand of IntLit.t
+  | AbstractValueOperand of Var.t
+  | FunctionApplicationOperand of {f: function_symbol; actuals: Var.t list}
+
+let pp_operand fmt = function
+  | LiteralOperand i ->
+      IntLit.pp fmt i
+  | AbstractValueOperand v ->
+      Var.pp fmt v
+  | FunctionApplicationOperand {f; actuals} ->
+      F.fprintf fmt "%a(%a)" pp_function_symbol f (Pp.seq ~sep:"," Var.pp) actuals
+
 
 (** Linear Arithmetic *)
 module LinArith : sig
@@ -194,6 +216,8 @@ module Term = struct
   type t =
     | Const of Q.t
     | Var of Var.t
+    | Procname of Procname.t
+    | FunctionApplication of {f: t; actuals: t list}
     | Linear of LinArith.t
     | Add of t * t
     | Minus of t
@@ -228,6 +252,10 @@ module Term = struct
         false
     | Linear _ ->
         false
+    | Procname _ ->
+        false
+    | FunctionApplication _ ->
+        false
     | Minus _
     | BitNot _
     | Not _
@@ -259,6 +287,12 @@ module Term = struct
         pp_var fmt v
     | Const c ->
         Q.pp_print fmt c
+    | Procname proc_name ->
+        Procname.pp fmt proc_name
+    | FunctionApplication {f; actuals} ->
+        F.fprintf fmt "%a(%a)" (pp_paren pp_var ~needs_paren) f
+          (Pp.seq ~sep:"," (pp_paren pp_var ~needs_paren))
+          actuals
     | Linear l ->
         F.fprintf fmt "[%a]" (LinArith.pp pp_var) l
     | Minus t ->
@@ -312,6 +346,9 @@ module Term = struct
         Var v
     | LiteralOperand i ->
         IntLit.to_big_int i |> Q.of_bigint |> of_q
+    | FunctionApplicationOperand {f; actuals} ->
+        let f = match f with Unknown v -> Var v | Procname proc_name -> Procname proc_name in
+        FunctionApplication {f; actuals= List.map actuals ~f:(fun v -> Var v)}
 
 
   let of_subst_target = function QSubst q -> of_q q | VarSubst v -> Var v | LinSubst l -> Linear l
@@ -373,8 +410,22 @@ module Term = struct
   (** Fold [f] on the strict sub-terms of [t], if any. Preserve physical equality if [f] does. *)
   let fold_map_direct_subterms t ~init ~f =
     match t with
-    | Var _ | Const _ | Linear _ | IsInstanceOf _ ->
+    (* no sub-terms *)
+    | Var _ | Const _ | Procname _ | Linear _ | IsInstanceOf _ ->
         (init, t)
+    (* list of sub-terms *)
+    | FunctionApplication {f= t_f; actuals} ->
+        let acc, t_f' = f init t_f in
+        let changed = ref (not (phys_equal t_f t_f')) in
+        let acc, actuals' =
+          List.fold_map actuals ~init:acc ~f:(fun acc actual ->
+              let acc, actual' = f acc actual in
+              changed := !changed || not (phys_equal actual actual') ;
+              (acc, actual') )
+        in
+        let t' = if !changed then FunctionApplication {f= t_f'; actuals= actuals'} else t in
+        (acc, t')
+    (* one sub-term *)
     | Minus t_not | BitNot t_not | Not t_not ->
         let acc, t_not' = f init t_not in
         let t' =
@@ -389,6 +440,7 @@ module Term = struct
                 Not t_not'
         in
         (acc, t')
+    (* two sub-terms *)
     | Add (t1, t2)
     | Mult (t1, t2)
     | Div (t1, t2)
@@ -459,10 +511,6 @@ module Term = struct
 
   let map_subterms t ~f = fold_map_subterms t ~init:() ~f:(fun () t' -> ((), f t')) |> snd
 
-  let iter_subterms t ~f = Container.iter ~fold:fold_subterms t ~f
-
-  let exists_subterm t ~f = Container.exists ~iter:iter_subterms t ~f
-
   let rec fold_subst_variables t ~init ~f =
     match t with
     | Var v ->
@@ -486,6 +534,8 @@ module Term = struct
         let t' = if phys_equal l l' then t else Linear l' in
         (acc, t')
     | Const _
+    | Procname _
+    | FunctionApplication _
     | Add _
     | Minus _
     | LessThan _
@@ -540,7 +590,7 @@ module Term = struct
     in
     let or_undef q_opt = Option.value ~default:Q.undef q_opt in
     match t0 with
-    | Const _ | Var _ | IsInstanceOf _ ->
+    | Const _ | Var _ | IsInstanceOf _ | Procname _ | FunctionApplication _ ->
         t0
     | Linear l ->
         LinArith.get_as_const l |> Option.value_map ~default:t0 ~f:(fun c -> Const c)
@@ -719,6 +769,8 @@ module Term = struct
       | Div (t, Const c) when Q.is_not_zero c ->
           let+ l = aux_linearize t in
           LinArith.mult (Q.inv c) l
+      | Procname _
+      | FunctionApplication _
       | Mult _
       | Div _
       | Mod _
@@ -830,6 +882,16 @@ module Atom = struct
     (acc, t')
 
 
+  let fold_terms atom ~init ~f = fold_map_terms atom ~init ~f:(fun acc t -> (f acc t, t)) |> fst
+
+  let fold_subterms atom ~init ~f =
+    fold_terms atom ~init ~f:(fun acc t -> Term.fold_subterms t ~init:acc ~f)
+
+
+  let iter_subterms atom ~f = Container.iter ~fold:fold_subterms atom ~f
+
+  let exists_subterm atom ~f = Container.exists ~iter:iter_subterms atom ~f
+
   let equal t1 t2 = Equal (t1, t2)
 
   let less_equal t1 t2 = LessEqual (t1, t2)
@@ -849,6 +911,7 @@ module Atom = struct
 
   let map_terms atom ~f = fold_map_terms atom ~init:() ~f:(fun () t -> ((), f t)) |> snd
 
+  (* Preseves physical equality if [f] does. *)
   let map_subterms atom ~f = map_terms atom ~f:(fun t -> Term.map_subterms t ~f)
 
   let to_term : t -> Term.t = function
@@ -1127,7 +1190,7 @@ module Formula = struct
 
     val normalize_atom : t -> Atom.t -> Atom.t option SatUnsat.t
 
-    val normalize : t -> (t * new_eqs) SatUnsat.t
+    val normalize : t * new_eqs -> (t * new_eqs) SatUnsat.t
 
     val implies_atom : t -> Atom.t -> bool
 
@@ -1472,7 +1535,7 @@ module Formula = struct
 
     (* interface *)
 
-    let normalize phi = normalize_with_fuel ~fuel:base_fuel (phi, [])
+    let normalize phi_new_eqs = normalize_with_fuel ~fuel:base_fuel phi_new_eqs
 
     let and_atom atom phi_new_eqs = and_atom atom phi_new_eqs >>| snd
 
@@ -1574,47 +1637,54 @@ module DynamicTypes = struct
            Term.of_bool is_instanceof )
 
 
-  let simplify tenv ~get_dynamic_type phi =
-    let simplify_is_instance_of (t : Term.t) =
+  let really_simplify tenv ~get_dynamic_type phi =
+    let simplify_term (t : Term.t) =
       match t with
       | IsInstanceOf (v, typ) -> (
         match evaluate_instanceof tenv ~get_dynamic_type v typ with None -> t | Some t' -> t' )
       | t ->
           t
     in
-    let changed = ref false in
-    let term_eqs =
-      if
-        Term.VarMap.exists
-          (fun t _ -> Term.exists_subterm t ~f:(function IsInstanceOf _ -> true | _ -> false))
-          phi.both.term_eqs
-      then
-        (* slow path: reconstruct everything *)
-        Term.VarMap.fold
-          (fun t v term_eqs' ->
-            let t' = Term.map_subterms t ~f:simplify_is_instance_of in
-            changed := !changed || not (phys_equal t t') ;
-            Term.VarMap.add t' v term_eqs' )
-          phi.both.term_eqs Term.VarMap.empty
-      else (* fast path: nothing to do *) phi.both.term_eqs
+    let simplify_atom atom = Atom.map_subterms ~f:simplify_term atom in
+    let open SatUnsat.Import in
+    let old_term_eqs = phi.both.term_eqs in
+    let old_atoms = phi.both.atoms in
+    let both = {phi.both with term_eqs= Term.VarMap.empty; atoms= Atom.Set.empty} in
+    let* both, new_eqs =
+      let f t v acc_both =
+        let* acc_both = acc_both in
+        let t = simplify_term t in
+        Formula.Normalizer.and_var_term v t acc_both
+      in
+      Term.VarMap.fold f old_term_eqs (Sat (both, []))
     in
-    let atoms =
-      Atom.Set.map
-        (fun atom ->
-          Atom.map_subterms atom ~f:(fun t ->
-              let t' = simplify_is_instance_of t in
-              changed := !changed || not (phys_equal t t') ;
-              t' ) )
-        phi.both.atoms
+    let+ both, new_eqs =
+      let f atom acc_both =
+        let* acc_both = acc_both in
+        let atom = simplify_atom atom in
+        Formula.Normalizer.and_atom atom acc_both
+      in
+      Atom.Set.fold f old_atoms (Sat (both, new_eqs))
     in
-    if !changed then {phi with both= {phi.both with atoms; term_eqs}} else phi
+    ({phi with both}, new_eqs)
+
+
+  let has_instanceof phi =
+    let in_term (t : Term.t) = match t with IsInstanceOf _ -> true | _ -> false in
+    let in_atom atom = Atom.exists_subterm atom ~f:in_term in
+    Term.VarMap.exists (fun t _v -> in_term t) phi.both.term_eqs
+    || Atom.Set.exists in_atom phi.both.atoms
+
+
+  let simplify tenv ~get_dynamic_type phi =
+    if has_instanceof phi then really_simplify tenv ~get_dynamic_type phi else Sat (phi, [])
 end
 
 let normalize tenv ~get_dynamic_type phi =
   let open SatUnsat.Import in
-  let phi = DynamicTypes.simplify tenv ~get_dynamic_type phi in
-  let* both, new_eqs = Formula.Normalizer.normalize phi.both in
-  let* known, _ = Formula.Normalizer.normalize phi.known in
+  let* phi, new_eqs = DynamicTypes.simplify tenv ~get_dynamic_type phi in
+  let* both, new_eqs = Formula.Normalizer.normalize (phi.both, new_eqs) in
+  let* known, _ = Formula.Normalizer.normalize (phi.known, new_eqs) in
   let+ pruned =
     Atom.Set.fold
       (fun atom pruned_sat ->
@@ -1706,7 +1776,8 @@ let and_fold_subst_variables phi0 ~up_to_f:phi_foreign ~init ~f:f_var =
 module QuantifierElimination : sig
   val eliminate_vars : keep:Var.Set.t -> t -> t SatUnsat.t
   (** [eliminate_vars ~keep φ] substitutes every variable [x] in [φ] with [x'] whenever [x'] is a
-      distinguished representative of the equivalence class of [x] in [φ] such that [x' ∈ keep] *)
+      distinguished representative of the equivalence class of [x] in [φ] such that
+      [x' ∈ keep_pre ∪ keep_post] *)
 end = struct
   exception Contradiction
 
@@ -1749,7 +1820,7 @@ end = struct
 
 
   let eliminate_vars ~keep phi =
-    let subst = VarUF.reorient ~keep phi.known.var_eqs in
+    let subst = VarUF.reorient ~should_keep:(fun x -> Var.Set.mem x keep) phi.known.var_eqs in
     try Sat (subst_var subst phi) with Contradiction -> Unsat
 end
 
@@ -1809,6 +1880,10 @@ module DeadVariables = struct
     graph
 
 
+  let is_source_of_incompleteness atom =
+    match (atom : Atom.t) with LessEqual _ | LessThan _ -> true | Equal _ | NotEqual _ -> false
+
+
   (** Intermediate step of [simplify]: construct transitive closure of variables reachable from [vs]
       in [graph]. *)
   let get_reachable_from graph vs =
@@ -1836,11 +1911,11 @@ module DeadVariables = struct
 
 
   (** Get rid of atoms when they contain only variables that do not appear in atoms mentioning
-      variables in [keep], or variables appearing in atoms together with variables in [keep], and so
-      on. In other words, the variables to keep are all the ones transitively reachable from
+      variables in [keep], or variables appearing in atoms together with variables in these sets,
+      and so on. In other words, the variables to keep are all the ones transitively reachable from
       variables in [keep] in the graph connecting two variables whenever they appear together in a
       same atom of the formula. *)
-  let eliminate ~keep phi =
+  let eliminate ~can_be_pruned ~keep phi =
     (* We only consider [phi.both] when building the relation. Considering [phi.known] and
        [phi.pruned] as well could lead to us keeping more variables around, but that's not necessarily
        a good idea. Ignoring them means we err on the side of reporting potentially slightly more
@@ -1849,12 +1924,11 @@ module DeadVariables = struct
     let var_graph = build_var_graph phi.both in
     let vars_to_keep = get_reachable_from var_graph keep in
     L.d_printfln "Reachable vars: %a" Var.Set.pp vars_to_keep ;
-    (* discard atoms which have variables *not* in [vars_to_keep], which in particular is enough
-       to guarantee that *none* of their variables are in [vars_to_keep] thanks to transitive
-       closure on the graph above *)
-    let filter_atom atom = not (Atom.has_var_notin vars_to_keep atom) in
+    let exception Contradiction in
     let simplify_phi phi =
-      let var_eqs = VarUF.filter_not_in_closed_set ~keep:vars_to_keep phi.Formula.var_eqs in
+      let var_eqs =
+        VarUF.filter_morphism ~f:(fun x -> Var.Set.mem x vars_to_keep) phi.Formula.var_eqs
+      in
       let linear_eqs =
         Var.Map.filter (fun v _ -> Var.Set.mem v vars_to_keep) phi.Formula.linear_eqs
       in
@@ -1863,25 +1937,66 @@ module DeadVariables = struct
           (fun t v -> Var.Set.mem v vars_to_keep && not (Term.has_var_notin vars_to_keep t))
           phi.Formula.term_eqs
       in
-      let atoms = Atom.Set.filter filter_atom phi.Formula.atoms in
+      (* discard atoms which have variables *not* in [vars_to_keep], which in particular is enough
+         to guarantee that *none* of their variables are in [vars_to_keep] thanks to transitive
+         closure on the graph above *)
+      let atoms =
+        if Config.pulse_prune_unsupported_arithmetic then
+          Atom.Set.fold
+            (fun atom (atoms_to_keep, discarded_vars_in_atoms) ->
+              let discard_atom = ref false in
+              let discarded_vars_in_atoms =
+                Atom.fold_terms atom ~init:discarded_vars_in_atoms ~f:(fun discarded t ->
+                    Term.fold_variables t ~init:discarded ~f:(fun discarded v ->
+                        if (not (is_source_of_incompleteness atom)) || Var.Set.mem v vars_to_keep
+                        then discarded
+                        else if Var.Set.mem v discarded_vars_in_atoms then (
+                          (* the variable was already involved in *another* atom we discarded, we risk
+                             incompleteness by discarding both (eg [x<y, y≤x]) *)
+                          L.d_printfln ~color:Orange
+                            "%a appears in several atoms that should be discarded; incompleteness \
+                             feared, pruning the path"
+                            Var.pp v ;
+                          raise Contradiction )
+                        else (
+                          discard_atom := true ;
+                          Var.Set.add v discarded ) ) )
+              in
+              let atoms_to_keep =
+                if !discard_atom then atoms_to_keep else Atom.Set.add atom atoms_to_keep
+              in
+              (atoms_to_keep, discarded_vars_in_atoms) )
+            phi.Formula.atoms (Atom.Set.empty, Var.Set.empty)
+          |> fst
+        else
+          Atom.Set.filter (fun atom -> not (Atom.has_var_notin vars_to_keep atom)) phi.Formula.atoms
+      in
       {Formula.var_eqs; linear_eqs; term_eqs; atoms}
     in
-    let known = simplify_phi phi.known in
-    let both = simplify_phi phi.both in
-    let pruned = Atom.Set.filter filter_atom phi.pruned in
-    {known; pruned; both}
+    try
+      let known = simplify_phi phi.known in
+      let both = simplify_phi phi.both in
+      let pruned =
+        (* discard atoms that callers have no way of influencing, i.e. more or less those that do not
+           contain variables related to variables in the pre *)
+        let closed_prunable_vars = get_reachable_from var_graph can_be_pruned in
+        Atom.Set.filter (fun atom -> not (Atom.has_var_notin closed_prunable_vars atom)) phi.pruned
+      in
+      Sat ({known; pruned; both}, vars_to_keep)
+    with Contradiction -> Unsat
 end
 
-let simplify tenv ~get_dynamic_type ~keep phi =
+let simplify tenv ~get_dynamic_type ~can_be_pruned ~keep phi =
   let open SatUnsat.Import in
   let* phi, new_eqs = normalize tenv ~get_dynamic_type phi in
-  L.d_printfln_escaped "@[Simplifying %a@,wrt %a@]" pp phi Var.Set.pp keep ;
+  L.d_printfln_escaped "@[Simplifying %a@,wrt %a (keep), with prunables=%a@]" pp phi Var.Set.pp keep
+    Var.Set.pp can_be_pruned ;
   (* get rid of as many variables as possible *)
-  let+ phi = QuantifierElimination.eliminate_vars ~keep phi in
+  let* phi = QuantifierElimination.eliminate_vars ~keep phi in
   (* TODO: doing [QuantifierElimination.eliminate_vars; DeadVariables.eliminate] a few times may
      eliminate even more variables *)
-  let phi = DeadVariables.eliminate ~keep phi in
-  (phi, new_eqs)
+  let+ phi, live_vars = DeadVariables.eliminate ~can_be_pruned ~keep phi in
+  (phi, live_vars, new_eqs)
 
 
 let is_known_zero phi v =
@@ -1894,4 +2009,6 @@ let has_no_assumptions phi =
   Atom.Set.for_all (fun atom -> Formula.Normalizer.implies_atom phi.known atom) phi.pruned
 
 
-let get_var_repr phi v = (Formula.Normalizer.get_repr phi.known v :> Var.t)
+let get_known_var_repr phi v = (Formula.Normalizer.get_repr phi.known v :> Var.t)
+
+let get_both_var_repr phi v = (Formula.Normalizer.get_repr phi.both v :> Var.t)

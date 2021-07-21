@@ -38,6 +38,8 @@ module Node : sig
   (** kind of statement node *)
   type stmt_nodekind =
     | AssertionFailure
+    | AtomicCompareExchangeBranch
+    | AtomicExpr
     | BetweenJoinAndExit
     | BinaryConditionalStmtInit
     | BinaryOperatorStmt of string
@@ -57,6 +59,9 @@ module Node : sig
     | DeclStmt
     | DefineBody
     | Destruction of destruction_kind
+    | Erlang
+    | ErlangCaseClause
+    | ErlangExpression
     | ExceptionHandler
     | ExceptionsSink
     | ExprWithCleanups
@@ -229,7 +234,7 @@ val find_map_instrs : t -> f:(Sil.instr -> 'a option) -> 'a option
 val from_proc_attributes : ProcAttributes.t -> t
 (** Use [Cfg.create_proc_desc] if you are adding a proc desc to a cfg *)
 
-val get_access : t -> PredSymb.access
+val get_access : t -> ProcAttributes.access
 (** Return the visibility attribute *)
 
 val get_attributes : t -> ProcAttributes.t
@@ -255,6 +260,7 @@ val get_locals : t -> ProcAttributes.var_data list
 (** Return name and type and attributes of local variables *)
 
 val get_nodes : t -> Node.t list
+(** Return the nodes, excluding the start node and the exit node. *)
 
 val get_proc_name : t -> Procname.t
 
@@ -269,6 +275,10 @@ val get_ret_var : t -> Pvar.t
 
 val get_ret_param_var : t -> Pvar.t
 
+val get_ret_type_from_signature : t -> Typ.t
+(** Return the return type from method signature: if the procedure has added return parameter,
+    return its type *)
+
 val get_start_node : t -> Node.t
 
 val get_static_callees : t -> Procname.t list
@@ -279,6 +289,9 @@ val is_defined : t -> bool
 
 val is_java_synchronized : t -> bool
 (** Return [true] if the procedure signature has the Java synchronized keyword *)
+
+val is_csharp_synchronized : t -> bool
+(** Return [true] if the procedure is synchronized via a C# lock *)
 
 val is_objc_arc_on : t -> bool
 (** Return [true] iff the ObjC procedure is compiled with ARC *)

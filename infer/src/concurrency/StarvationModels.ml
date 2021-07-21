@@ -156,7 +156,8 @@ let may_do_ipc =
       ; { default with
           classname= "android.content.Context"
         ; methods= ["checkPermission"; "checkSelfPermission"] }
-      ; {default with classname= "android.net.wifi.WifiManager"; methods= ["getConnectionInfo"]} ])
+      ; {default with classname= "android.net.wifi.WifiManager"; methods= ["getConnectionInfo"]}
+      ; {default with classname= "android.view.Display"; methods= ["getRealSize"]} ])
 
 
 let is_monitor_wait =
@@ -335,7 +336,7 @@ let get_run_method_from_runnable tenv runnable =
 let get_returned_executor tenv callee actuals =
   let type_check =
     lazy
-      ( AnalysisCallbacks.proc_resolve_attributes callee
+      ( Attributes.load callee
       |> Option.exists ~f:(fun (attrs : ProcAttributes.t) ->
              match attrs.ret_type.Typ.desc with
              | Tstruct tname | Typ.Tptr ({desc= Tstruct tname}, _) ->
@@ -405,7 +406,8 @@ let is_java_main_method (pname : Procname.t) =
     match args with [arg] -> Typ.equal pointer_to_array_of_java_lang_string arg | _ -> false
   in
   match pname with
-  | C _ | Linters_dummy_method | Block _ | ObjC_Cpp _ | CSharp _ | WithBlockParameters _ ->
+  | C _ | Erlang _ | Linters_dummy_method | Block _ | ObjC_Cpp _ | CSharp _ | WithBlockParameters _
+    ->
       false
   | Java java_pname ->
       Procname.Java.is_static java_pname

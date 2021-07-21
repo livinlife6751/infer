@@ -341,20 +341,8 @@ module ObjectiveC = struct
     String.is_prefix ~prefix:"CG" procname && String.is_suffix ~suffix:"Release" procname
 
 
-  let is_modelled_as_alloc _ procname =
-    match Config.pulse_model_alloc_pattern with
-    | Some regex ->
-        Str.string_match regex procname 0
-    | None ->
-        false
-
-
-  let is_modelled_as_release _ procname =
-    match Config.pulse_model_release_pattern with
-    | Some regex ->
-        Str.string_match regex procname 0
-    | None ->
-        false
+  let implements_ns_string_variants tenv procname =
+    implements "NSString" tenv procname || implements "NSAttributedString" tenv procname
 end
 
 let get_vararg_type_names tenv (call_node : Procdesc.Node.t) (ivar : Pvar.t) : string list =
@@ -560,3 +548,6 @@ let get_fields_nullified procdesc =
       ~init:(Fieldname.Set.empty, Ident.Set.empty)
   in
   nullified_flds
+
+
+let is_entry_point proc_name = String.equal (Procname.get_method proc_name) "main"

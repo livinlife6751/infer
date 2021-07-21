@@ -78,18 +78,18 @@ are specified, they are applied in the order in which they
 are specified. Each filter is applied to each issue
 detected, and only issues which are accepted by all filters
 are reported. Each filter is of the form:
-&rsquo;&lt;issue_type_regex&gt;:&lt;filename_regex&gt;:&lt;reason_string&gt;&rsquo;.
+&lsquo;&lt;issue_type_regex&gt;:&lt;filename_regex&gt;:&lt;reason_string&gt;&lsquo;.
 The first two components are OCaml Str regular expressions,
-with an optional &rsquo;!&rsquo; character prefix. If a
-regex has a &rsquo;!&rsquo; prefix, the polarity is
+with an optional &lsquo;!&lsquo; character prefix. If a
+regex has a &lsquo;!&lsquo; prefix, the polarity is
 inverted, and the filter becomes a &quot;blacklist&quot;
 instead of a &quot;whitelist&quot;. Each filter is
 interpreted as an implication: an issue matches if it does
-not match the &rsquo;issue_type_regex&rsquo; or if it does
-match the &rsquo;filename_regex&rsquo;. The filenames that
+not match the &lsquo;issue_type_regex&lsquo; or if it does
+match the &lsquo;filename_regex&lsquo;. The filenames that
 are tested by the regex are relative to the
-&rsquo;--project-root&rsquo; directory. The
-&rsquo;&lt;reason_string&gt;&rsquo; is a non-empty string
+&lsquo;--project-root&lsquo; directory. The
+&lsquo;&lt;reason_string&gt;&lsquo; is a non-empty string
 used to explain why the issue was filtered.</p>
 
 
@@ -338,6 +338,9 @@ MULTIPLE_WEAKSELF (enabled by default), <br>
 MUTABLE_LOCAL_VARIABLE_IN_COMPONENT_FILE (enabled by
 default), <br>
 Missing_fld (enabled by default), <br>
+NIL_BLOCK_CALL (enabled by default), <br>
+NIL_INSERTION_INTO_COLLECTION (enabled by default), <br>
+NIL_MESSAGING_TO_NON_POD (enabled by default), <br>
 NULLPTR_DEREFERENCE (enabled by default), <br>
 NULL_DEREFERENCE (enabled by default), <br>
 OPTIONAL_EMPTY_ACCESS (enabled by default), <br>
@@ -347,7 +350,7 @@ PRECONDITION_NOT_FOUND (enabled by default), <br>
 PRECONDITION_NOT_MET (enabled by default), <br>
 PREMATURE_NIL_TERMINATION_ARGUMENT (enabled by default),
 <br>
-PULSE_UNINITIALIZED_VALUE (disabled by default), <br>
+PULSE_UNINITIALIZED_VALUE (enabled by default), <br>
 PURE_FUNCTION (enabled by default), <br>
 QUANDARY_TAINT_ERROR (enabled by default), <br>
 RESOURCE_LEAK (enabled by default), <br>

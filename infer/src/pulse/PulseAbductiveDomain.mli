@@ -6,9 +6,7 @@
  *)
 
 open! IStd
-module F = Format
 open PulseBasicInterface
-module BaseAddressAttributes = PulseBaseAddressAttributes
 module BaseDomain = PulseBaseDomain
 module BaseMemory = PulseBaseMemory
 module BaseStack = PulseBaseStack
@@ -24,24 +22,6 @@ module type BaseDomainSig = sig
   (* private because the lattice is not the same for preconditions and postconditions so we don't
      want to confuse them *)
   type t = private BaseDomain.t [@@deriving compare, equal, yojson_of]
-
-  val yojson_of_t : t -> Yojson.Safe.t
-
-  val empty : t
-
-  val update : ?stack:BaseStack.t -> ?heap:BaseMemory.t -> ?attrs:BaseAddressAttributes.t -> t -> t
-
-  val filter_addr : f:(AbstractValue.t -> bool) -> t -> t
-  (** filter both heap and attrs *)
-
-  val filter_addr_with_discarded_addrs :
-    f:(AbstractValue.t -> bool) -> t -> t * AbstractValue.t list
-  (** compute new state containing only reachable addresses in its heap and attributes, as well as
-      the list of discarded unreachable addresses *)
-
-  val subst_var : AbstractValue.t * AbstractValue.t -> t -> t SatUnsat.t
-
-  val pp : F.formatter -> t -> unit
 end
 
 (** The post abstract state at each program point, or current state. *)
@@ -77,8 +57,6 @@ val get_pre : t -> BaseDomain.t
 
 val get_post : t -> BaseDomain.t
 
-val simplify_instanceof : Tenv.t -> t -> t
-
 (** stack operations like {!BaseStack} but that also take care of propagating facts to the
     precondition *)
 module Stack : sig
@@ -90,7 +68,13 @@ module Stack : sig
 
   val find_opt : Var.t -> t -> BaseStack.value option
 
-  val eval : Location.t -> ValueHistory.t -> Var.t -> t -> t * (AbstractValue.t * ValueHistory.t)
+  val eval :
+       PathContext.t
+    -> Location.t
+    -> ValueHistory.t
+    -> Var.t
+    -> t
+    -> t * (AbstractValue.t * ValueHistory.t)
   (** return the value of the variable in the stack or create a fresh one if needed *)
 
   val mem : Var.t -> t -> bool
@@ -135,19 +119,25 @@ module AddressAttributes : sig
 
   val add_attrs : AbstractValue.t -> Attributes.t -> t -> t
 
-  val check_valid : Trace.t -> AbstractValue.t -> t -> (t, Invalidation.t * Trace.t) result
+  val check_valid :
+       PathContext.t
+    -> ?must_be_valid_reason:Invalidation.must_be_valid_reason
+    -> Trace.t
+    -> AbstractValue.t
+    -> t
+    -> (t, Invalidation.t * Trace.t) result
 
-  val check_initialized : Trace.t -> AbstractValue.t -> t -> (t, unit) result
+  val check_initialized : PathContext.t -> Trace.t -> AbstractValue.t -> t -> (t, unit) result
 
   val invalidate : AbstractValue.t * ValueHistory.t -> Invalidation.t -> Location.t -> t -> t
-
-  val replace_must_be_valid_reason : Invalidation.must_be_valid_reason -> AbstractValue.t -> t -> t
 
   val allocate : Procname.t -> AbstractValue.t * ValueHistory.t -> Location.t -> t -> t
 
   val add_dynamic_type : Typ.t -> AbstractValue.t -> t -> t
 
   val remove_allocation_attr : AbstractValue.t -> t -> t
+
+  val get_allocation : AbstractValue.t -> t -> (Procname.t * Trace.t) option
 
   val get_closure_proc_name : AbstractValue.t -> t -> Procname.t option
 
@@ -159,10 +149,13 @@ module AddressAttributes : sig
 
   val std_vector_reserve : AbstractValue.t -> t -> t
 
+  val add_unreachable_at : AbstractValue.t -> Location.t -> t -> t
+
   val find_opt : AbstractValue.t -> t -> Attributes.t option
 
   val check_valid_isl :
-       Trace.t
+       PathContext.t
+    -> Trace.t
     -> AbstractValue.t
     -> ?null_noop:bool
     -> t
@@ -173,9 +166,8 @@ val is_local : Var.t -> t -> bool
 
 val find_post_cell_opt : AbstractValue.t -> t -> BaseDomain.cell option
 
-val discard_unreachable : t -> t * AbstractValue.Set.t * AbstractValue.t list
-(** garbage collect unreachable addresses in the state to make it smaller and return the new state,
-    the live addresses, and the discarded addresses that used to have attributes attached *)
+val get_unreachable_attributes : t -> AbstractValue.t list
+(** collect the addresses that have attributes but are unreachable in the current post-condition *)
 
 val add_skipped_call : Procname.t -> Trace.t -> t -> t
 
@@ -195,14 +187,16 @@ val skipped_calls_match_pattern : summary -> bool
 val summary_of_post :
      Tenv.t
   -> Procdesc.t
+  -> Location.t
   -> t
   -> ( summary
-     , [> `PotentialInvalidAccessSummary of
-          summary * AbstractValue.t * (Trace.t * Invalidation.must_be_valid_reason option) ] )
+     , [> `MemoryLeak of summary * Procname.t * Trace.t * Location.t
+       | `PotentialInvalidAccessSummary of
+         summary * AbstractValue.t * (Trace.t * Invalidation.must_be_valid_reason option) ] )
      result
      SatUnsat.t
-(** trim the state down to just the procedure's interface (formals and globals), and simplify and
-    normalize the state *)
+(** Trim the state down to just the procedure's interface (formals and globals), and simplify and
+    normalize the state. *)
 
 val set_post_edges : AbstractValue.t -> BaseMemory.Edges.t -> t -> t
 (** directly set the edges for the given address, bypassing abduction altogether *)

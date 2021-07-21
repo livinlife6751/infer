@@ -36,6 +36,26 @@ let __array_access = create_procname "__array_access"
 
 let __assert_fail = create_procname "__assert_fail"
 
+let __atomic_fetch_max = create_procname "__atomic_fetch_max"
+
+let __atomic_fetch_min = create_procname "__atomic_fetch_min"
+
+let __atomic_fetch_nand = create_procname "__atomic_fetch_nand"
+
+let __atomic_max_fetch = create_procname "__atomic_max_fetch"
+
+let __atomic_min_fetch = create_procname "__atomic_min_fetch"
+
+let __atomic_nand_fetch = create_procname "__atomic_nand_fetch"
+
+let __c11_atomic_fetch_max = create_procname "__c11_atomic_fetch_max"
+
+let __c11_atomic_fetch_min = create_procname "__c11_atomic_fetch_min"
+
+let __opencl_atomic_fetch_max = create_procname "__opencl_atomic_fetch_max"
+
+let __opencl_atomic_fetch_min = create_procname "__opencl_atomic_fetch_min"
+
 let __builtin_va_arg = create_procname "__builtin_va_arg"
 
 let __builtin_va_copy = create_procname "__builtin_va_copy"
@@ -55,6 +75,18 @@ let __delete = create_procname "__delete"
 let __delete_array = create_procname "__delete_array"
 
 let __delete_locked_attribute = create_procname "__delete_locked_attribute"
+
+let __erlang_error_badmatch = create_procname "__erlang_error_badmatch"
+
+let __erlang_error_case_clause = create_procname "__erlang_error_case_clause"
+
+let __erlang_error_function_clause = create_procname "__erlang_error_function_clause"
+
+let __erlang_error_if_clause = create_procname "__erlang_error_if_clause"
+
+let __erlang_make_cons = create_procname "__erlang_make_cons"
+
+let __erlang_make_nil = create_procname "__erlang_make_nil"
 
 let __exit = create_procname "_exit"
 

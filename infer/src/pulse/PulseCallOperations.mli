@@ -13,6 +13,7 @@ type t = AbductiveDomain.t
 
 val call :
      Tenv.t
+  -> PathContext.t
   -> caller_proc_desc:Procdesc.t
   -> callee_data:(Procdesc.t * PulseSummary.t) option
   -> Location.t
@@ -27,13 +28,14 @@ val call :
 
 val unknown_call :
      Tenv.t
+  -> PathContext.t
   -> Location.t
   -> CallEvent.t
   -> ret:Ident.t * Typ.t
   -> actuals:((AbstractValue.t * ValueHistory.t) * Typ.t) list
   -> formals_opt:(Pvar.t * Typ.t) list option
   -> t
-  -> t
+  -> t AccessResult.t
 (** performs a call to a function with no summary by optimistically havoc'ing the by-ref actuals and
     the return value as appropriate *)
 

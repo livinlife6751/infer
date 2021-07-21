@@ -71,7 +71,7 @@ case "${OS}" in
                 BUILD_PLATFORM=Windows
                 ;;
             *)
-                AC_MSG_ERROR(["OS $unamestr is not supported"])
+                AC_MSG_ERROR(["OS $uname_str is not supported"])
                 ;;
         esac
 esac
@@ -91,12 +91,19 @@ AC_ARG_ENABLE(c-analyzers,
 BUILD_C_ANALYZERS=$enable_c_analyzers
 AC_SUBST([BUILD_C_ANALYZERS])
 
+AC_ARG_ENABLE(erlang-analyzers,
+  AS_HELP_STRING([--disable-erlang-analyzers],
+    [do not build the Erlang analyzers (default is to build them)]),
+  ,
+  enable_erlang_analyzers=yes)
+BUILD_ERLANG_ANALYZERS=$enable_erlang_analyzers
+AC_SUBST([BUILD_ERLANG_ANALYZERS])
+
 AC_ARG_ENABLE(java-analyzers,
   AS_HELP_STRING([--disable-java-analyzers],
     [do not build the Java analyzers (default is to build them)]),
   ,
   enable_java_analyzers=yes)
-
 BUILD_JAVA_ANALYZERS=$enable_java_analyzers
 AC_SUBST([BUILD_JAVA_ANALYZERS])
 
@@ -269,6 +276,12 @@ AS_IF([test "$OPAM" != "no"], [
 AC_SUBST([OPAMROOT])
 AC_SUBST([OPAMSWITCH])
 
+if test "x$enable_erlang_analyzers" = "xyes"; then
+  AC_CHECK_TOOL([ESCRIPT], [escript], [no])
+  AC_CHECK_TOOL([REBAR3], [rebar3], [no])
+fi
+# end if($enable_erlang_analyzers)
+
 if test "x$enable_java_analyzers" = "xyes"; then
   AC_CHECK_TOOL([JAVA], [java], [no])
   AC_CHECK_TOOL([JAVAC], [javac], [no])
@@ -379,7 +392,6 @@ if test x"$NDKBUILD" = x"no"; then
 fi
 
 AC_CHECK_TOOL([NINJA], [ninja], [no])
-
 AC_CHECK_TOOL([XCPRETTY], [xcpretty], [no])
 
 AC_CHECK_TOOL([SED], [sed], [no])

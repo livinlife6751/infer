@@ -628,6 +628,8 @@ let prop_init_formals_seed tenv new_formals (prop : 'a Prop.t) : Prop.exposed Pr
             Exp.Sizeof {typ; nbytes= None; dynamic_length= None; subtype= Subtype.exact}
         | Java | CIL ->
             Exp.Sizeof {typ; nbytes= None; dynamic_length= None; subtype= Subtype.subtypes}
+        | Erlang ->
+            L.die InternalError "Erlang not supported"
       in
       Prop.mk_ptsto_lvar tenv Prop.Fld_init Predicates.inst_formal (pv, texp, None)
     in
@@ -1043,7 +1045,7 @@ let perform_transition ({InterproceduralAnalysis.tenv; _} as analysis_data) proc
         match ProcCfg.Exceptional.start_node proc_cfg with
         | start_node ->
             AnalysisCallbacks.html_debug_new_node_session ~pp_name start_node ~f
-        | exception exn when SymOp.exn_not_failure exn ->
+        | exception exn when Exception.exn_not_failure exn ->
             f ()
       in
       with_start_node_session ~f:(fun () ->
@@ -1052,7 +1054,7 @@ let perform_transition ({InterproceduralAnalysis.tenv; _} as analysis_data) proc
             let res = collect_preconditions analysis_data summary in
             BiabductionConfig.allow_leak := allow_leak ;
             res
-          with exn when SymOp.exn_not_failure exn ->
+          with exn when Exception.exn_not_failure exn ->
             BiabductionConfig.allow_leak := allow_leak ;
             L.debug Analysis Medium "Error in collect_preconditions for %a@." Procname.pp proc_name ;
             let error = Exceptions.recognize_exception exn in

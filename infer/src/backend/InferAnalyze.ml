@@ -11,7 +11,6 @@
 open! IStd
 module F = Format
 module L = Logging
-module CLOpt = CommandLineOption
 
 let clear_caches_except_lrus () =
   Summary.OnDisk.clear_cache () ;
@@ -51,7 +50,7 @@ let analyze_target : (TaskSchedulerTypes.target, string) Tasks.doer =
           Ondemand.analyze_file exe_env source_file ;
           if Config.write_html then Printer.write_all_html_files source_file ;
           None
-        with TaskSchedulerTypes.ProcnameAlreadyLocked {dependency_filename} ->
+        with RestartSchedulerException.ProcnameAlreadyLocked {dependency_filename} ->
           Some dependency_filename )
   in
   (* In call-graph scheduling, log progress every [per_procedure_logging_granularity] procedures.
@@ -68,7 +67,7 @@ let analyze_target : (TaskSchedulerTypes.target, string) Tasks.doer =
     try
       Ondemand.analyze_proc_name_toplevel exe_env proc_name ;
       None
-    with TaskSchedulerTypes.ProcnameAlreadyLocked {dependency_filename} ->
+    with RestartSchedulerException.ProcnameAlreadyLocked {dependency_filename} ->
       Some dependency_filename
   in
   fun target ->
@@ -117,8 +116,8 @@ let get_source_files_to_analyze ~changed_files =
     if result then incr n_source_files_to_analyze ;
     result
   in
-  ScubaLogging.log_count ~label:"source_files_to_analyze" ~value:!n_source_files_to_analyze ;
   let source_files_to_analyze = SourceFiles.get_all ~filter () in
+  ScubaLogging.log_count ~label:"source_files_to_analyze" ~value:!n_source_files_to_analyze ;
   let pp_n_source_files ~n_total fmt n_to_analyze =
     let pp_total_if_not_all fmt n_total =
       if Config.reactive_mode || Option.is_some changed_files then
@@ -134,17 +133,13 @@ let get_source_files_to_analyze ~changed_files =
 
 
 let tasks_generator_builder_for sources =
-  if Config.call_graph_schedule then (
-    CLOpt.warnf "WARNING: '--call-graph-schedule' is deprecated. Use '--scheduler' instead.@." ;
-    SyntacticCallGraph.make sources )
-  else
-    match Config.scheduler with
-    | File ->
-        FileScheduler.make sources
-    | Restart ->
-        RestartScheduler.make sources
-    | SyntacticCallGraph ->
-        SyntacticCallGraph.make sources
+  match Config.scheduler with
+  | File ->
+      FileScheduler.make sources
+  | Restart ->
+      RestartScheduler.make sources
+  | SyntacticCallGraph ->
+      SyntacticCallGraph.make sources
 
 
 let analyze source_files_to_analyze =

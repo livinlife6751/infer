@@ -517,7 +517,7 @@ This error type is reported only in C++, in versions >= C++11.
 The code is trying to access an element of a vector that Infer believes to be
 empty. Such an access will cause undefined behavior at runtime.
 
-```c++
+```cpp
 #include <vector>
 int foo(){
   const std::vector<int> vec;
@@ -1199,12 +1199,11 @@ class C implements I {
 
 Reported as "Lock Consistency Violation" by [racerd](/docs/next/checker-racerd).
 
-This is a C++ and Objective C error reported whenever:
+This is an error reported on C++ and Objective C classes whenever:
 
-- A class contains a member `lock` used for synchronization (most often a
-  `std::mutex`).
-- It has a public method which writes to some member `x` while holding `lock`.
-- It has a public method which reads `x` without holding `lock`.
+- Some class method directly uses locking primitives (not transitively).
+- It has a public method which writes to some member `x` while holding a lock.
+- It has a public method which reads `x` without holding a lock.
 
 The above may happen through a chain of calls. Above, `x` may also be a
 container (an array, a vector, etc).
@@ -1302,6 +1301,45 @@ Reported as "Mutable Local Variable In Component File" by [linters](/docs/next/c
 
 [Doc in ComponentKit page](http://componentkit.org/docs/avoid-local-variables)
 
+## NIL_BLOCK_CALL
+
+Reported as "Nil Block Call" by [pulse](/docs/next/checker-pulse).
+
+Calling a nil block is an error in Objective-C.
+## NIL_INSERTION_INTO_COLLECTION
+
+Reported as "Nil Insertion Into Collection" by [pulse](/docs/next/checker-pulse).
+
+Inserting nil into a collection is an error in Objective-C.
+## NIL_MESSAGING_TO_NON_POD
+
+Reported as "Nil Messaging To Non Pod" by [pulse](/docs/next/checker-pulse).
+
+In Objective-C, calling a method on `nil` (or in Objective-C terms, sending a message to `nil`) does not crash,
+it simply returns a falsy value (nil/0/false). However, sending a message that returns
+a non-POD C++ type (POD being ["Plain Old Data"](https://en.cppreference.com/w/cpp/named_req/PODType), essentially
+anything that cannot be compiled as a C-style struct) to `nil` causes undefined behaviour.
+
+```objectivec
+std::shared_ptr<int> callMethodReturnsnonPOD() {
+  SomeObject* obj = getObjectOrNil();
+  std::shared_ptr<int> d = [obj returnsnonPOD]; // UB
+  return d;
+}
+```
+
+To fix the above issue, we need to check if `obj` is
+not `nil` before calling the `returnsnonPOD` method:
+
+```objectivec
+std::shared_ptr<int> callMethodReturnsnonPOD(bool b) {
+  SomeObject* obj = getObjectOrNil(b);
+  if (obj == nil) { return std::make_shared<int>(0); }
+  std::shared_ptr<int> d = [obj returnsnonPOD];
+  return d;
+}
+```
+
 ## NULLPTR_DEREFERENCE
 
 Reported as "Nullptr Dereference" by [pulse](/docs/next/checker-pulse).
@@ -1377,7 +1415,7 @@ int null_pointer_interproc() {
 In Objective-C, null dereferences are less common than in Java, but they still
 happen and their cause can be hidden. In general, passing a message to nil does
 not cause a crash and returns `nil`, but dereferencing a pointer directly does
-cause a crash as well as calling a `nil` block.C
+cause a crash as well as calling a `nil` block.
 
 ```objectivec
 -(void) foo:(void (^)())callback {
@@ -2023,7 +2061,7 @@ Reported as "StrongSelf Not Checked" by [self-in-block](/docs/next/checker-self-
 
 When a block captures `weakSelf` in the following pattern:
 
-```
+```objectivec
 __weak __typeof(self) weakSelf = self;
   int (^my_block)() = ^() {
     __strong __typeof(weakSelf) strongSelf = weakSelf;
@@ -2134,98 +2172,7 @@ These annotations can be found at `com.facebook.infer.annotation.*`.
 
 Reported as "Thread Safety Violation in `@Nullsafe` Class" by [racerd](/docs/next/checker-racerd).
 
-This warning indicates a potential data race in Java. The analyser is called
-RacerD and this section gives brief but a mostly complete description of its
-features. See the [RacerD page](/docs/next/checker-racerd) for more in-depth information and
-examples.
-
-### Thread-safety: What is a data race
-
-Here a data race is a pair of accesses to the same member field such that:
-
-- at least one is a write, and,
-- at least one occurs without any lock synchronization, and,
-- the two accesses occur on threads (if known) which can run in parallel.
-
-### Thread-safety: Potential fixes
-
-- Synchronizing the accesses (using the `synchronized` keyword, thread-exclusion
-  such as atomic objects, `volatile` etc).
-- Making an offending method private -- this will exclude it from being checked
-  at the top level, though it will be checked if called by a public method which
-  may itself, e.g., hold a lock when calling it.
-- Putting the two accesses on the same thread, e.g., by using `@MainThread` or
-  `@ThreadConfined`.
-
-### Thread-safety: Conditions checked before reporting
-
-The class and method are not marked `@ThreadSafe(enableChecks = false)`, and,
-
-- The method is declared `synchronized`, or employs (non-transitively) locking,
-  or,
-- The class is not marked `@NotThreadSafe`, and,
-  - The class/method is marked `@ThreadSafe,` or one of the configured synonyms
-    in `.inferconfig`, or,
-  - A parent class, or an override method are marked with the above annotations.
-
-NB currently RacerD **does not take into account `@GuardedBy`**.
-
-### Thread-safety: Thread annotations recognized by RacerD
-
-These class and method annotations imply the method is on the main thread:
-`@MainThread`, `@UiThread`
-
-These method annotations imply the method is on the main thread: `@OnBind`,
-`@OnEvent`, `@OnMount`, `@OnUnbind`, `@OnUnmount`
-
-Both classes of annotations work through the inheritance tree (i.e. if a parent
-class or method is marked with one of these annotations, so is the child class /
-method override).
-
-In addition to these, RacerD recognizes many lifecycle methods as necessarily
-running on the main thread, eg `Fragment.onCreate` etc.
-
-Finally, the thread status of being on the main thread propagates backwards
-through the call graph (ie if `foo` calls `bar` and `bar` is marked `@UiThtread`
-then `foo` is automatically considered on the main thread too). Calling
-`assertMainThread`, `assertOnUiThread`, `checkOnMainThread` has the same effect.
-
-NB RacerD currently **does not recognize `@WorkerThread`, `@BinderThread` or
-`@AnyThread`**.
-
-### Thread-safety: Other annotations and what they do
-
-These annotations can be found at `com.facebook.infer.annotation.*`.
-
-- `@Functional` This is a method annotation indicating the method always returns
-  the same value. When a method `foo` is annotated `@Functional`, RacerD will
-  ignore any writes of the return value of `foo`. For example, in
-  `this.x = foo()`, the write to `this.x` is ignored. The reasoning is that if
-  the method returns the same value whenever it's called, any data race on
-  `this.x` is benign, if that is the only write.
-
-- `@ThreadConfined` This is a class/method/field annotation which takes a single
-  parameter which can be `UI`, `ANY` or a user chosen string. It indicates to
-  RacerD a thread identifier for the class/method/field. Thus,
-  `@ThreadConfined(UI)` is equivalent to `@UiThread`, and `@ThreadConfined(ANY)`
-  is equivalent to not having the annotation at all, for classes and methods.
-  When this annotation is applied to a field it instructs Infer to assume
-  (without checking) that all accesses to that field are made on the same thread
-  (and can, therefore, not race by definition). The intention is that RacerD
-  uses that to detect exclusion between accesses occurring on the same thread.
-  However, only the UI thread is supported at this time, and any user provided
-  value is considered equal to `UI`.
-
-- `@VisibleForTesting` A method annotation making Infer consider the method as
-  effectively `private`. This means it will not be checked for races against
-  other non-private methods of the class, but only if called by one.
-
-- `@ReturnsOwnership` A method annotation indicating that the method returns a
-  freshly owned object. Accesses to the returned value will not be considered
-  for data races, as the object is in-effect unique and not accessible yet from
-  other threads. The main utility of this annotation is in interfaces, where
-  Infer cannot look up the implementation and decide for itself.
-
+A [Thread Safety Violation](#thread_safety_violation) in a `@Nullsafe` class.
 ## TOPL_ERROR
 
 Reported as "Topl Error" by [topl](/docs/next/checker-topl).
@@ -2237,7 +2184,7 @@ Reported as "Uninitialized Value" by [uninit](/docs/next/checker-uninit).
 
 A value is read before it has been initialized. For example, in C:
 
-```C
+```c
 struct coordinates {
   int x;
   int y;
@@ -2335,7 +2282,7 @@ The lifetime of an object has ended but that object is being
 accessed. For example, the address of a variable holding a C++ object
 is accessed after the variable has gone out of scope:
 
-```C++
+```cpp
 void foo() {
      X* p;
      { // new scope
@@ -2359,7 +2306,7 @@ pointers into the previous location of the contents).
 
 For example:
 
-```C++
+```cpp
 void deref_vector_element_after_push_back_bad(std::vector<int>& vec) {
   int* elt = &vec[1];
   vec.push_back(42); // if the array backing the vector was full already, this

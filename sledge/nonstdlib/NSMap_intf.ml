@@ -80,6 +80,8 @@ module type S = sig
       equivalent maps. [O(1)]. *)
 
   val min_binding : 'a t -> (key * 'a) option
+  val max_binding : 'a t -> (key * 'a) option
+  val max_binding_exn : 'a t -> key * 'a
   val mem : key -> 'a t -> bool
   val find : key -> 'a t -> 'a option
   val find_exn : key -> 'a t -> 'a
@@ -120,6 +122,13 @@ module type S = sig
   val existsi : 'a t -> f:(key:key -> data:'a -> bool) -> bool
   val for_alli : 'a t -> f:(key:key -> data:'a -> bool) -> bool
   val fold : 'a t -> 's -> f:(key:key -> data:'a -> 's -> 's) -> 's
+
+  val fold_until :
+       'a t
+    -> 's
+    -> f:(key:key -> data:'a -> 's -> [`Continue of 's | `Stop of 'b])
+    -> finish:('s -> 'b)
+    -> 'b
 
   (** {1 Convert} *)
 

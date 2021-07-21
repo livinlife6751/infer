@@ -50,8 +50,8 @@ endif
 # Note that we run find under _build directory. Since we copy some
 # sources from subfolders to src/ folder to avoid duplicates we use
 # $(DEPTH_ONE) and iteration over main and library folders.
-LIBRARY_FOLDERS = . ./IR ./absint ./al ./atd ./backend ./base ./biabduction ./bufferoverrun ./c_stubs ./checkers ./clang ./clang/unit ./concurrency ./cost ./integration ./istd ./java ./labs ./dotnet ./nullsafe ./nullsafe/unit ./pulse ./quandary ./scripts ./test_determinator ./topl ./unit
-INCLUDE_FOLDERS = -I IR -I absint -I al -I atd -I backend -I base -I biabduction -I bufferoverrun -I c_stubs -I checkers -I clang -I clang/unit -I concurrency -I cost -I integration -I istd -I java -I labs -I dotnet -I nullsafe -I nullsafe/unit -I pulse -I quandary -I scripts -I test_determinator -I topl -I unit
+LIBRARY_FOLDERS = . ./IR ./absint ./al ./atd ./backend ./base ./biabduction ./bufferoverrun ./c_stubs ./checkers ./clang ./clang/unit ./concurrency ./cost ./erlang ./integration ./istd ./java ./labs ./dotnet ./nullsafe ./nullsafe/unit ./pulse ./quandary ./scripts ./test_determinator ./topl ./unit
+INCLUDE_FOLDERS = -I IR -I absint -I al -I atd -I backend -I base -I biabduction -I bufferoverrun -I c_stubs -I checkers -I clang -I clang/unit -I concurrency -I cost -I erlang -I integration -I istd -I java -I labs -I dotnet -I nullsafe -I nullsafe/unit -I pulse -I quandary -I scripts -I test_determinator -I topl -I unit
 
 ml_src_files = $(shell \
   cd $(INFER_BUILD_DIR); \
@@ -186,7 +186,7 @@ detect_dead_code: dune
 
 .PHONY: detect_dead_src_file
 detect_dead_src_file:
-	function is_in_blacklist { \
+	function is_in_block_list { \
 	  if [ $$1 = infertop.ml ] \
 	  || [ $$1 = infertop.mli ] \
 	  || [ $$1 = deadcode/all_infer_in_one_file.ml ] \
@@ -204,28 +204,28 @@ detect_dead_src_file:
 	\
 	tmp_file=$$(mktemp -t all_ml_files_XXXXX); \
 	for i in $(ml_src_files) $(ml_src_files_without_mli); do \
-	  (is_in_blacklist "$$i") || (echo "$$i" >> "$$tmp_file"); \
+	  (is_in_block_list "$$i") || (echo "$$i" >> "$$tmp_file"); \
 	done; \
 	sort -u "$$tmp_file" > $(ALL_ML_FILES); \
 	rm "$$tmp_file"; \
 	\
 	tmp_file=$$(mktemp -t all_mli_files_XXXXX); \
 	for i in $(mli_src_files); do \
-	  (is_in_blacklist "$$i") || (echo "$$i" >> "$$tmp_file"); \
+	  (is_in_block_list "$$i") || (echo "$$i" >> "$$tmp_file"); \
 	done; \
 	sort -u "$$tmp_file" > $(ALL_MLI_FILES); \
 	rm "$$tmp_file"; \
 	\
 	tmp_file=$$(mktemp -t all_ml_files_copied_XXXXX); \
 	for i in $$(cat $(ALL_ML_FILES_COPIED)); do \
-	  (is_in_blacklist "$$i") || (echo "$$i" >> "$$tmp_file"); \
+	  (is_in_block_list "$$i") || (echo "$$i" >> "$$tmp_file"); \
 	done; \
 	sort -u "$$tmp_file" > $(ALL_ML_FILES_COPIED); \
 	rm "$$tmp_file"; \
 	\
 	tmp_file=$$(mktemp -t all_mli_files_copied_XXXXX); \
 	for i in $$(cat $(ALL_MLI_FILES_COPIED)); do \
-	  (is_in_blacklist "$$i") || (echo "$$i" >> "$$tmp_file"); \
+	  (is_in_block_list "$$i") || (echo "$$i" >> "$$tmp_file"); \
 	done; \
 	sort -u "$$tmp_file" > $(ALL_MLI_FILES_COPIED); \
 	rm "$$tmp_file"

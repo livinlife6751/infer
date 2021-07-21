@@ -10,6 +10,22 @@
 open! IStd
 module F = Format
 
+(** Visibility modifiers. *)
+type access = Default | Public | Private | Protected [@@deriving compare]
+
+let equal_access = [%compare.equal: access]
+
+let string_of_access = function
+  | Default ->
+      "Default"
+  | Public ->
+      "Public"
+  | Private ->
+      "Private"
+  | Protected ->
+      "Protected"
+
+
 (** Type for ObjC accessors *)
 type objc_accessor_type = Objc_getter of Struct.field | Objc_setter of Struct.field
 [@@deriving compare]
@@ -44,7 +60,7 @@ type specialized_with_blocks_info =
 [@@deriving compare]
 
 type t =
-  { access: PredSymb.access  (** visibility access *)
+  { access: access  (** visibility access *)
   ; captured: CapturedVar.t list  (** name and type of variables captured in blocks *)
   ; exceptions: string list  (** exceptions thrown by the procedure *)
   ; formals: (Mangled.t * Typ.t) list  (** name and type of formal parameters *)
@@ -54,6 +70,7 @@ type t =
   ; is_bridge_method: bool  (** the procedure is a bridge method *)
   ; is_defined: bool  (** true if the procedure is defined, and not just declared *)
   ; is_java_synchronized_method: bool  (** the procedure is a Java synchronized method *)
+  ; is_csharp_synchronized_method: bool  (** the procedure is a C# synchronized method *)
   ; passed_as_noescape_block_to: Procname.t option
         (** Present if the procedure is an Objective-C block that has been passed to the given
             method in a position annotated with the NS_NOESCAPE attribute. *)
@@ -104,17 +121,12 @@ let get_access attributes = attributes.access
 
 let get_formals attributes = attributes.formals
 
-let get_pvar_formals attributes =
-  let pname = attributes.proc_name in
-  List.map attributes.formals ~f:(fun (name, typ) -> (Pvar.mk name pname, typ))
-
-
 let get_proc_name attributes = attributes.proc_name
 
 let get_loc attributes = attributes.loc
 
 let default translation_unit proc_name =
-  { access= PredSymb.Default
+  { access= Default
   ; captured= []
   ; exceptions= []
   ; formals= []
@@ -124,6 +136,7 @@ let default translation_unit proc_name =
   ; is_bridge_method= false
   ; is_defined= false
   ; is_java_synchronized_method= false
+  ; is_csharp_synchronized_method= false
   ; passed_as_noescape_block_to= None
   ; is_no_return= false
   ; is_objc_arc_on= false
@@ -172,6 +185,7 @@ let pp f
      ; is_bridge_method
      ; is_defined
      ; is_java_synchronized_method
+     ; is_csharp_synchronized_method
      ; passed_as_noescape_block_to
      ; is_no_return
      ; is_objc_arc_on
@@ -197,8 +211,8 @@ let pp f
   in
   F.fprintf f "@[<v>{ proc_name= %a@,; translation_unit= %a@," Procname.pp proc_name SourceFile.pp
     translation_unit ;
-  if not (PredSymb.equal_access default.access access) then
-    F.fprintf f "; access= %a@," (Pp.of_string ~f:PredSymb.string_of_access) access ;
+  if not (equal_access default.access access) then
+    F.fprintf f "; access= %a@," (Pp.of_string ~f:string_of_access) access ;
   if not ([%compare.equal: CapturedVar.t list] default.captured captured) then
     F.fprintf f "; captured= [@[%a@]]@," pp_captured captured ;
   if not ([%compare.equal: string list] default.exceptions exceptions) then
@@ -217,6 +231,8 @@ let pp f
   pp_bool_default ~default:default.is_defined "is_defined" is_defined f () ;
   pp_bool_default ~default:default.is_java_synchronized_method "is_java_synchronized_method"
     is_java_synchronized_method f () ;
+  pp_bool_default ~default:default.is_csharp_synchronized_method "is_csharp_synchronized_method"
+    is_csharp_synchronized_method f () ;
   if
     not
       ([%compare.equal: Procname.t option] default.passed_as_noescape_block_to

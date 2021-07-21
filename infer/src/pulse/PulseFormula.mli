@@ -25,7 +25,14 @@ val pp_with_pp_var : (F.formatter -> Var.t -> unit) -> F.formatter -> t -> unit
   [@@warning "-32"]
 (** only used for unit tests *)
 
-type operand = LiteralOperand of IntLit.t | AbstractValueOperand of Var.t
+type function_symbol = Unknown of Var.t | Procname of Procname.t [@@deriving compare]
+
+type operand =
+  | LiteralOperand of IntLit.t
+  | AbstractValueOperand of Var.t
+  | FunctionApplicationOperand of {f: function_symbol; actuals: Var.t list}
+
+val pp_operand : F.formatter -> operand -> unit
 
 (** {3 Build formulas} *)
 
@@ -59,9 +66,10 @@ val normalize : Tenv.t -> get_dynamic_type:(Var.t -> Typ.t option) -> t -> (t * 
 val simplify :
      Tenv.t
   -> get_dynamic_type:(Var.t -> Typ.t option)
+  -> can_be_pruned:Var.Set.t
   -> keep:Var.Set.t
   -> t
-  -> (t * new_eqs) SatUnsat.t
+  -> (t * Var.Set.t * new_eqs) SatUnsat.t
 
 val and_fold_subst_variables :
      t
@@ -74,12 +82,9 @@ val is_known_zero : t -> Var.t -> bool
 
 val has_no_assumptions : t -> bool
 
-val get_var_repr : t -> Var.t -> Var.t
-(** get the canonical representative for the variable according to the equality relation *)
+val get_known_var_repr : t -> Var.t -> Var.t
+(** get the canonical representative for the variable according to the known/post equality relation *)
 
-(** Module for reasoning about dynamic types. **)
-module DynamicTypes : sig
-  val simplify : Tenv.t -> get_dynamic_type:(Var.t -> Typ.t option) -> t -> t
-  (** Simplifies [IsInstanceOf(var, typ)] predicate when dynamic type information is available in
-      state. **)
-end
+val get_both_var_repr : t -> Var.t -> Var.t
+(** get the canonical representative for the variable according to the both/pre+post equality
+    relation *)

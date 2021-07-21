@@ -370,10 +370,6 @@ and dummy_func =
 module Inst = struct
   type t = inst [@@deriving compare, equal, hash, sexp]
 
-  module Tbl = HashTable.Make (struct
-    type t = block * inst [@@deriving equal, hash]
-  end)
-
   let pp = pp_inst
   let move ~reg_exps ~loc = Move {reg_exps; loc}
   let load ~reg ~ptr ~len ~loc = Load {reg; ptr; len; loc}
@@ -536,6 +532,53 @@ module Block = struct
     ; term
     ; parent= dummy_block.parent
     ; sort_index= dummy_block.sort_index }
+end
+
+type ip = {block: block; index: int}
+[@@deriving compare, equal, hash, sexp_of]
+
+module IP = struct
+  type t = ip [@@deriving compare, equal, hash, sexp_of]
+
+  let mk block = {block; index= 0}
+  let succ {block; index} = {block; index= index + 1}
+
+  let inst {block; index} =
+    if index < IArray.length block.cmnd then
+      Some (IArray.get block.cmnd index)
+    else None
+
+  let block ip = ip.block
+
+  let is_schedule_point ip =
+    match inst ip with
+    | Some (Load _ | Store _ | Free _) -> true
+    | Some (Move _ | Alloc _ | Nondet _ | Abort _) -> false
+    | Some (Intrinsic {name; _}) -> (
+      match name with
+      | `calloc | `malloc | `mallocx | `nallocx -> false
+      | `_ZN5folly13usingJEMallocEv | `aligned_alloc | `dallocx | `mallctl
+       |`mallctlbymib | `mallctlnametomib | `malloc_stats_print
+       |`malloc_usable_size | `memcpy | `memmove | `memset
+       |`posix_memalign | `rallocx | `realloc | `sallocx | `sdallocx
+       |`strlen | `xallocx ->
+          true )
+    | None -> (
+      match ip.block.term with
+      | Call {callee; _} -> (
+        match Function.name callee.name with
+        | "sledge_thread_join" -> true
+        | _ -> false )
+      | _ -> false )
+
+  let pp ppf {block; index} =
+    Format.fprintf ppf "#%i%t %%%s" block.sort_index
+      (fun ppf -> if index <> 0 then Format.fprintf ppf "+%i" index)
+      block.lbl
+
+  module Tbl = HashTable.Make (struct
+    type t = ip [@@deriving equal, hash]
+  end)
 end
 
 (* Blocks compared by label, which are unique within a function, used to

@@ -139,7 +139,7 @@ OPTIONS
        --bootclasspath string
            Specify the Java bootclasspath           See also infer-capture(1).
 
-       --buck-blacklist +regex
+       --buck-block-list +regex
            Skip capture of files matched by the specified regular expression.
            Only the clang, non-compilation-database                Buck integration is supported, not Java.
            See also infer-capture(1) and infer-run(1).
@@ -148,6 +148,12 @@ OPTIONS
            Activates: Buck integration for clang-based targets
            (C/C++/Objective-C/Objective-C++). (Conversely: --no-buck-clang)       
     See also infer-capture(1).
+
+       --buck-clang-use-toolchain-config
+           Activates: Suppress setting buck config values for the infer
+           binary and other values in the buck-clang-flavor integration and
+           instead rely on buck toolchain configuration options. (Conversely:
+           --no-buck-clang-use-toolchain-config)           See also infer-capture(1).
 
        --buck-compilation-database { no-deps | deps }
            Buck integration using the compilation database, with or without
@@ -180,7 +186,7 @@ OPTIONS
            successful capture. Only valid for --buck-clang. (Conversely:
            --no-buck-merge-all-deps)           See also infer-capture(1).
 
-       --buck-targets-blacklist +regex
+       --buck-targets-block-list +regex
            Skip capture of buck targets matched by the specified regular
            expression. Only valid for --buck-compilation-database.       
     See also infer-capture(1) and infer-run(1).
@@ -194,7 +200,7 @@ OPTIONS
            Activates: Enable bufferoverrun and disable all other checkers
            (Conversely: --no-bufferoverrun-only)           See also infer-analyze(1).
 
-       --capture-blacklist regex
+       --capture-block-list regex
            Skip capture of files matched by the specified OCaml regular
            expression (only supported by the javac integration for now).       
     See also infer-capture(1) and infer-run(1).
@@ -211,8 +217,8 @@ OPTIONS
            `<issue_type_regex>:<filename_regex>:<reason_string>`. The first
            two components are OCaml Str regular expressions, with an optional
            `!` character prefix. If a regex has a `!` prefix, the polarity is
-           inverted, and the filter becomes a "blacklist" instead of a
-           "whitelist". Each filter is interpreted as an implication: an
+           inverted, and the filter becomes a "block list" instead of a
+           "allow list". Each filter is interpreted as an implication: an
            issue matches if it does not match the `issue_type_regex` or if it
            does match the `filename_regex`. The filenames that are tested by
            the regex are relative to the `--project-root` directory. The
@@ -232,10 +238,10 @@ OPTIONS
            format. Please note you still need to provide a compilation
            command.           See also infer-capture(1).
 
-       --clang-blacklisted-flags +string
+       --clang-block-listed-flags +string
            Clang flags to filter out           See also infer-capture(1).
 
-       --clang-blacklisted-flags-with-arg +string
+       --clang-block-listed-flags-with-arg +string
            Clang flags (taking args) to filter out           See also infer-capture(1).
 
        --clang-compound-literal-init-limit int
@@ -394,8 +400,8 @@ OPTIONS
            Deactivates: Default checkers: --biabduction,
            --fragment-retains-view, --inefficient-keyset-iterator, --linters,
            --liveness, --racerd, --dotnet-resource-leak, --siof,
-           --self-in-block, --starvation, --uninit (Conversely:
-           --default-checkers)           See also infer-analyze(1).
+           --self-in-block, --starvation (Conversely: --default-checkers)       
+    See also infer-analyze(1).
 
        --no-default-linters
            Deactivates: Use the default linters for the analysis.
@@ -541,7 +547,13 @@ OPTIONS
              MULTIPLE_WEAKSELF (enabled by default),
              MUTABLE_LOCAL_VARIABLE_IN_COMPONENT_FILE (enabled by default),
              Missing_fld (enabled by default),
-             NIL_MESSAGING_TO_NON_POD (disabled by default),
+             NIL_BLOCK_CALL (enabled by default),
+             NIL_INSERTION_INTO_COLLECTION (enabled by default),
+             NIL_MESSAGING_TO_NON_POD (enabled by default),
+             NO_MATCHING_CASE_CLAUSE (enabled by default),
+             NO_MATCHING_FUNCTION_CLAUSE (enabled by default),
+             NO_MATCH_OF_RHS (enabled by default),
+             NO_TRUE_BRANCH_IN_IF (enabled by default),
              NULLPTR_DEREFERENCE (enabled by default),
              NULL_DEREFERENCE (enabled by default),
              OPTIONAL_EMPTY_ACCESS (enabled by default),
@@ -550,7 +562,7 @@ OPTIONS
              PRECONDITION_NOT_FOUND (enabled by default),
              PRECONDITION_NOT_MET (enabled by default),
              PREMATURE_NIL_TERMINATION_ARGUMENT (enabled by default),
-             PULSE_UNINITIALIZED_VALUE (disabled by default),
+             PULSE_UNINITIALIZED_VALUE (enabled by default),
              PURE_FUNCTION (enabled by default),
              QUANDARY_TAINT_ERROR (enabled by default),
              RESOURCE_LEAK (enabled by default),
@@ -612,6 +624,16 @@ OPTIONS
            Activates: Enable eradicate and disable all other checkers
            (Conversely: --no-eradicate-only)           See also infer-analyze(1).
 
+       --erlang-ast-dir dir
+           Also load AST from all .json files in the given path. These .json
+           files usually come from a previous run with --debug.       
+    See also infer-capture(1).
+
+       --erlang-skip-rebar3
+           Activates: Skip running rebar, to save time. It is useful together
+           with --erlang-ast-dir. (Conversely: --no-erlang-skip-rebar3)       
+    See also infer-capture(1).
+
        --external-java-packages +prefix
            Specify a list of Java package prefixes for external Java
            packages. If set, the analysis will not report non-actionable
@@ -626,7 +648,7 @@ OPTIONS
            differential reports           See also infer-reportdiff(1).
 
        --no-filtering,-F
-           Deactivates: Do not show the experimental and blacklisted issue
+           Deactivates: Do not show the experimental and block listed issue
            types (Conversely: --filtering | -f)           See also infer-report(1).
 
        --force-delete-results-dir
@@ -638,7 +660,7 @@ OPTIONS
            Proceed as if the first argument after -- was command. Possible
            values: ant, buck, gradle, gradlew, java, javac, cc, clang, gcc,
            clang++, c++, g++, make, configure, cmake, waf, mvn, mvnw,
-           ndk-build, xcodebuild.           See also infer-capture(1) and infer-run(1).
+           ndk-build, rebar3, xcodebuild.           See also infer-capture(1) and infer-run(1).
 
        --no-fragment-retains-view
            Deactivates: checker fragment-retains-view: Detects when Android
@@ -780,6 +802,10 @@ OPTIONS
            Activates: Keep going when the analysis encounters a failure
            (Conversely: --no-keep-going)           See also infer-analyze(1).
 
+       --kotlin-capture
+           Activates: Enable Kotlin capture (experimental, do not use).
+           (Conversely: --no-kotlin-capture)           See also infer-capture(1).
+
        --linter string
            From the linters available, only run this one linter. (Useful
            together with --linters-developer-mode)           See also infer-capture(1).
@@ -872,6 +898,10 @@ OPTIONS
        --loop-hoisting-only
            Activates: Enable loop-hoisting and disable all other checkers
            (Conversely: --no-loop-hoisting-only)           See also infer-analyze(1).
+
+       --no-mask-sawja-exceptions
+           Deactivates: Mask exceptions thrown by Sawja/Javalib during Java
+           capture (Conversely: --mask-sawja-exceptions)           See also infer-capture(1).
 
        --max-jobs int
            Maximum number of analysis jobs running simultaneously       
@@ -994,6 +1024,26 @@ OPTIONS
            Regex of methods that should be modelled as allocs in Pulse       
     See also infer-analyze(1).
 
+       --pulse-model-free-pattern string
+           Regex of methods that should be modelled as wrappers to free(3) in
+           Pulse. The pointer to be freed should be the first argument of the
+           function. This should only be needed if the code of the wrapper is
+           not visible to infer or if Pulse somehow doesn't understand it
+           (e.g. the call is dispatched to global function pointers).       
+    See also infer-analyze(1).
+
+       --pulse-model-malloc-pattern string
+           Regex of methods that should be modelled as wrappers to malloc(3)
+           in Pulse. The size to allocate should be the first argument of the
+           function. See --pulse-model-free-pattern for more information.       
+    See also infer-analyze(1).
+
+       --pulse-model-realloc-pattern string
+           Regex of methods that should be modelled as wrappers to realloc(3)
+           in Pulse. The pointer to be reallocated should be the first
+           argument of the function and the new size the second argument. See
+           --pulse-model-free-pattern for more information.           See also infer-analyze(1).
+
        --pulse-model-release-pattern string
            Regex of methods that should be modelled as release in Pulse       
     See also infer-analyze(1).
@@ -1019,12 +1069,22 @@ OPTIONS
            Activates: Enable pulse and disable all other checkers
            (Conversely: --no-pulse-only)           See also infer-analyze(1).
 
+       --pulse-prune-unsupported-arithmetic
+           Activates: The arithmetic engine in Pulse sometimes does not
+           detect that the collection of conditions on the path makes it
+           infeasible, especially outside the well-supported linear
+           arithmetic fragment. To avoid false positives, Pulse tries to
+           detect when there is a possibility of imprecise arithmetic
+           treatment and if so pessimistically assumes the path is
+           infeasible. (Conversely: --no-pulse-prune-unsupported-arithmetic)       
+    See also infer-analyze(1).
+
        --pulse-report-ignore-unknown-java-methods-patterns +string
            On Java, issues that are found on program paths that contain calls
            to unknown methods (those without implementation) are not reported
            unless all the unknown method names match this pattern. If the
-           empty list is provided or
-           --pulse_report_ignore_unknown_java_methods_patterns-reset, all
+           empty list is provided with
+           --pulse-report-ignore-unknown-java-methods-patterns-reset, all
            issues will be reported regardless the presence of unknown code       
     See also infer-analyze(1).
 
@@ -1089,14 +1149,19 @@ OPTIONS
            Deactivates: Run the reporting phase once the analysis has
            completed (Conversely: --report)           See also infer-analyze(1) and infer-run(1).
 
-       --report-blacklist-files-containing +string
+       --report-allow-list-path-regex +path_regex
+           Report issues only on files whose relative path matches the
+           specified OCaml regex (and which do not match
+           --report-block-list-path-regex)           See also infer-report(1) and infer-run(1).
+
+       --report-block-list-files-containing +string
            Do not report any issues on files containing the specified string       
     See also infer-report(1) and infer-run(1).
 
-       --report-blacklist-path-regex +path_regex
+       --report-block-list-path-regex +path_regex
            Do not report any issues on files whose relative path matches the
-           specified OCaml regex, even if they match the whitelist specified
-           by --report-whitelist-path-regex           See also infer-report(1) and infer-run(1).
+           specified OCaml regex, even if they match the allow list specified
+           by --report-allow-list-path-regex           See also infer-report(1) and infer-run(1).
 
        --report-console-limit int
            Maximum number of issues to display on standard output. Unset with
@@ -1118,11 +1183,6 @@ OPTIONS
 
        --report-suppress-errors +error_name
            do not report a type of errors           See also infer-report(1) and infer-run(1).
-
-       --report-whitelist-path-regex +path_regex
-           Report issues only on files whose relative path matches the
-           specified OCaml regex (and which do not match
-           --report-blacklist-path-regex)           See also infer-report(1) and infer-run(1).
 
        --results-dir,-o dir
            Write results and internal files in the specified directory       
@@ -1192,8 +1252,9 @@ OPTIONS
            data (Conversely: --no-skip-non-capture-clang-commands)       
     See also infer-capture(1).
 
-       --skip-translation-headers +path_prefix
-           Ignore headers whose path matches the given prefix           See also infer-capture(1).
+       --skip-translation-headers +path_regex
+           Ignore declarations in headers whose path matches the given OCaml
+           regex from the start of the string during capture.           See also infer-capture(1).
 
        --source-files
            Activates: Print source files discovered by infer (Conversely:
@@ -1266,9 +1327,9 @@ OPTIONS
            Activates: Enable topl and disable all other checkers (Conversely:
            --no-topl-only)           See also infer-analyze(1).
 
-       --no-uninit
-           Deactivates: checker uninit: Warns when values are used before
-           having been initialized. (Conversely: --uninit)           See also infer-analyze(1).
+       --uninit
+           Activates: checker uninit: Warns when values are used before
+           having been initialized. (Conversely: --no-uninit)           See also infer-analyze(1).
 
        --uninit-only
            Activates: Enable uninit and disable all other checkers
@@ -1445,8 +1506,8 @@ INTERNAL OPTIONS
        --bootclasspath-reset
            Cancel the effect of --bootclasspath.
 
-       --buck-blacklist-reset
-           Set --buck-blacklist to the empty list.
+       --buck-block-list-reset
+           Set --buck-block-list to the empty list.
 
        --buck-compilation-database-depth-reset
            Cancel the effect of --buck-compilation-database-depth.
@@ -1457,19 +1518,15 @@ INTERNAL OPTIONS
        --buck-java-heap-size-gb-reset
            Cancel the effect of --buck-java-heap-size-gb.
 
-       --buck-targets-blacklist-reset
-           Set --buck-targets-blacklist to the empty list.
-
-       --call-graph-schedule
-           Activates: use call graph for scheduling analysis (Conversely:
-           --no-call-graph-schedule)
+       --buck-targets-block-list-reset
+           Set --buck-targets-block-list to the empty list.
 
        --no-capture
            Deactivates: capture and translate source files into infer's
            intermediate language for analysis (Conversely: --capture)
 
-       --capture-blacklist-reset
-           Cancel the effect of --capture-blacklist.
+       --capture-block-list-reset
+           Cancel the effect of --capture-block-list.
 
        --censor-report-reset
            Set --censor-report to the empty list.
@@ -1489,11 +1546,11 @@ INTERNAL OPTIONS
        --clang-biniou-file-reset
            Cancel the effect of --clang-biniou-file.
 
-       --clang-blacklisted-flags-reset
-           Set --clang-blacklisted-flags to the empty list.
+       --clang-block-listed-flags-reset
+           Set --clang-block-listed-flags to the empty list.
 
-       --clang-blacklisted-flags-with-arg-reset
-           Set --clang-blacklisted-flags-with-arg to the empty list.
+       --clang-block-listed-flags-with-arg-reset
+           Set --clang-block-listed-flags-with-arg to the empty list.
 
        --clang-idirafter-to-override-regex dir_OCaml_regex
            Use this option in the uncommon case where the normal compilation
@@ -1578,6 +1635,11 @@ INTERNAL OPTIONS
        --costs-previous-reset
            Cancel the effect of --costs-previous.
 
+       --no-dbwriter
+           Deactivates: Use a separate process to serialize writes to sqlite.
+           Disabling this will degrade performance. Note that this is always
+           disabled on Windows and WSL. (Conversely: --dbwriter)
+
        --debug-exceptions
            Activates: Generate lightweight debugging information: just print
            the internal exceptions during analysis (also sets
@@ -1635,6 +1697,9 @@ INTERNAL OPTIONS
        --eradicate-verbose
            Activates: Print initial and final typestates (Conversely:
            --no-eradicate-verbose)
+
+       --erlang-ast-dir-reset
+           Cancel the effect of --erlang-ast-dir.
 
        --export-changed-functions
            Activates: Make infer output changed functions, similar to
@@ -1922,6 +1987,15 @@ INTERNAL OPTIONS
        --pulse-model-alloc-pattern-reset
            Cancel the effect of --pulse-model-alloc-pattern.
 
+       --pulse-model-free-pattern-reset
+           Cancel the effect of --pulse-model-free-pattern.
+
+       --pulse-model-malloc-pattern-reset
+           Cancel the effect of --pulse-model-malloc-pattern.
+
+       --pulse-model-realloc-pattern-reset
+           Cancel the effect of --pulse-model-realloc-pattern.
+
        --pulse-model-release-pattern-reset
            Cancel the effect of --pulse-model-release-pattern.
 
@@ -1973,11 +2047,23 @@ INTERNAL OPTIONS
            --incremental-analysis and --continue-analysis. (Conversely:
            --no-reanalyze)
 
-       --report-blacklist-files-containing-reset
-           Set --report-blacklist-files-containing to the empty list.
+       --remodel-class string
+           Specify a Remodel class name. For sub-classes of the Remodel class
+           in ObjC, setters and getters for properties are auto-generated and
+           they store/load values into/from field names of "_<property
+           name>".
 
-       --report-blacklist-path-regex-reset
-           Set --report-blacklist-path-regex to the empty list.
+       --remodel-class-reset
+           Cancel the effect of --remodel-class.
+
+       --report-allow-list-path-regex-reset
+           Set --report-allow-list-path-regex to the empty list.
+
+       --report-block-list-files-containing-reset
+           Set --report-block-list-files-containing to the empty list.
+
+       --report-block-list-path-regex-reset
+           Set --report-block-list-path-regex to the empty list.
 
        --report-console-limit-reset
            Cancel the effect of --report-console-limit.
@@ -1990,9 +2076,6 @@ INTERNAL OPTIONS
 
        --report-suppress-errors-reset
            Set --report-suppress-errors to the empty list.
-
-       --report-whitelist-path-regex-reset
-           Set --report-whitelist-path-regex to the empty list.
 
        --reports-include-ml-loc
            Activates: Include the location in the Infer source code from
@@ -2028,11 +2111,6 @@ INTERNAL OPTIONS
 
        --skip-analysis-in-path-reset
            Set --skip-analysis-in-path to the empty list.
-
-       --skip-implementation json
-           Matcher or list of matchers for names of files where we only want
-           to translate the method declaration, skipping the body of the
-           methods (Java only).
 
        --skip-translation json
            Matcher or list of matchers for names of files that should not be
@@ -2096,11 +2174,6 @@ INTERNAL OPTIONS
            which specify the relevant arguments. (Conversely:
            --no-test-determinator)
 
-       --test-filtering
-           Activates: List all the files Infer can report on (should be
-           called from the root of the project) (Conversely:
-           --no-test-filtering)
-
        --testing-mode
            Activates: Mode for testing, where no headers are translated, and
            dot files are created (clang only) (Conversely: --no-testing-mode)
@@ -2157,12 +2230,12 @@ INTERNAL OPTIONS
        --workspace-reset
            Cancel the effect of --workspace.
 
-       --write-html-whitelist-regex +string
-           Whitelist files that will have their html debug output printed
+       --write-html-allow-list-regex +string
+           Allow list files that will have their html debug output printed
            when --html is true.
 
-       --write-html-whitelist-regex-reset
-           Set --write-html-whitelist-regex to the empty list.
+       --write-html-allow-list-regex-reset
+           Set --write-html-allow-list-regex to the empty list.
 
        --write-website-reset
            Cancel the effect of --write-website.
@@ -2205,6 +2278,8 @@ FILES
        leading "--", and values depend on the type of the option:
        - for switches options, the value is a JSON boolean (true or false,
        without quotes)
+       - for non-switches options with no arguments (for instance the
+       undefined option associated with a list option), the value is null
        - for integers, the value is a JSON integer (without quotes)
        - string options have string values
        - path options have string values, and are interpreted relative to the
@@ -2218,7 +2293,7 @@ FILES
 
          {
            "cxx": false,
-           "infer-blacklist-files-containing": ["@gen","/* no infer */"]
+           "infer-block-list-files-containing": ["@gen","/* no infer */"]
          }
 
 

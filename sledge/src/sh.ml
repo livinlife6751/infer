@@ -171,7 +171,7 @@ let pp_heap x ?pre ctx fs heap =
     && Term.equal s1.len s2.len
     && Context.implies ctx (Formula.eq (Term.add s1.loc s1.siz) s2.loc)
   in
-  let heap = List.map heap ~f:(map_seg ~f:(Context.normalize ctx)) in
+  let heap = List.map ~f:(map_seg ~f:(Context.normalize ctx)) heap in
   let blocks = List.group_succ ~eq (List.sort ~cmp heap) in
   List.pp ?pre "@ * " (pp_block x) fs blocks
 
@@ -227,7 +227,7 @@ let rec pp_ ?var_strength ?vs ancestor_xs parent_ctx fs
         (pp_djn ?var_strength
            (Var.Set.union vs (Var.Set.union us xs))
            (Var.Set.union ancestor_xs xs)
-           ctx)
+           (if Option.is_some var_strength then ctx else emp.ctx))
         fs djns ) ;
   Format.pp_close_box fs ()
 
@@ -639,8 +639,10 @@ let dnf q =
 (** first-order approximation of heap constraints *)
 let rec pure_approx q =
   Formula.andN
-    ( [q.pure]
-    |> List.fold q.heap ~f:(fun seg p -> Formula.dq0 seg.loc :: p)
+    ( [ q.pure
+      ; Formula.distinct
+          (Array.of_list
+             (Term.zero :: List.map ~f:(fun seg -> seg.loc) q.heap)) ]
     |> List.fold q.djns ~f:(fun djn p ->
            Formula.orN (List.map djn ~f:pure_approx) :: p ) )
 
@@ -837,13 +839,11 @@ let rec simplify_ us rev_xss survived ancestor_subst q =
       let survived =
         Var.Set.union survived (fv (elim_exists stem.xs stem))
       in
-      let q =
-        starN
-          ( stem
-          :: List.map q.djns ~f:(fun djn ->
-                 orN (List.map ~f:(simplify_ us rev_xss survived subst) djn) )
-          )
+      let djns =
+        List.map q.djns ~f:(fun djn ->
+            orN (List.map ~f:(simplify_ us rev_xss survived subst) djn) )
       in
+      let q = starN (stem :: djns) in
       if is_false q then false_ q.us
       else
         let removed = Var.Set.diff removed survived in

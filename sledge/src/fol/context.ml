@@ -508,15 +508,18 @@ let rec canon_extend_ a x =
     | None -> (
         (* norm wrt rep and add subterms *)
         let a_norm, x = Trm.fold_map ~f:canon_extend_ a x in
-        match Trm.Map.find_or_add a_norm a_norm x.rep with
-        | Some a', _ ->
-            (* a_norm already equal to a' *)
-            (a', x)
-        | None, rep ->
-            (* a_norm newly added *)
-            let use = add_uses_of a_norm x.use in
-            let x = {x with rep; use} in
-            (a_norm, x) ) )
+        match Theory.classify a_norm with
+        | InterpAtom | NonInterpAtom | InterpApp -> canon_extend_ a_norm x
+        | UninterpApp -> (
+          match Trm.Map.find_or_add a_norm a_norm x.rep with
+          | Some a', _ ->
+              (* a_norm already equal to a' *)
+              (a', x)
+          | None, rep ->
+              (* a_norm newly added *)
+              let use = add_uses_of a_norm x.use in
+              let x = {x with rep; use} in
+              (a_norm, x) ) ) )
 
 (** normalize and add a term to the carrier *)
 let canon_extend a x =
@@ -797,7 +800,7 @@ let rec add_ wrt b r =
   | And {pos; neg} -> Fml.fold_pos_neg ~f:(add_ wrt) ~pos ~neg r
   | Eq (d, e) -> and_eq ~wrt d e r
   | Eq0 e -> and_eq ~wrt Trm.zero e r
-  | Pos _ | Not _ | Or _ | Iff _ | Cond _ | Lit _ -> r
+  | Distinct _ | Pos _ | Not _ | Or _ | Iff _ | Cond _ | Lit _ -> r
 
 let add us b r =
   [%Trace.call fun {pf} -> pf "@ %a@ | %a" Fml.pp b pp r]

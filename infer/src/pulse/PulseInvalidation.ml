@@ -52,12 +52,20 @@ type t =
   | JavaIterator of java_iterator_function
 [@@deriving compare, equal]
 
-type must_be_valid_reason = SelfOfNonPODReturnMethod [@@deriving compare, equal]
+type must_be_valid_reason =
+  | BlockCall
+  | InsertionIntoCollection
+  | SelfOfNonPODReturnMethod of Typ.t
+[@@deriving compare, equal]
 
 let pp_must_be_valid_reason f = function
   | None ->
       F.fprintf f "None"
-  | Some SelfOfNonPODReturnMethod ->
+  | Some BlockCall ->
+      F.fprintf f "Block"
+  | Some InsertionIntoCollection ->
+      F.fprintf f "InsertionIntoCollection"
+  | Some (SelfOfNonPODReturnMethod _) ->
       F.fprintf f "SelfOfNonPODReturnMethod"
 
 
@@ -69,7 +77,11 @@ let issue_type_of_cause invalidation must_be_valid_reason =
     match must_be_valid_reason with
     | None ->
         IssueType.nullptr_dereference
-    | Some SelfOfNonPODReturnMethod ->
+    | Some BlockCall ->
+        IssueType.nil_block_call
+    | Some InsertionIntoCollection ->
+        IssueType.nil_insertion_into_collection
+    | Some (SelfOfNonPODReturnMethod _) ->
         IssueType.nil_messaging_to_non_pod )
   | ConstantDereference _ ->
       IssueType.constant_address_dereference
@@ -89,18 +101,10 @@ let isl_equiv v1 v2 =
   match (v1, v2) with
   | ConstantDereference i1, ConstantDereference i2 ->
       IntLit.eq i1 i2
-  | CFree, CFree
-  | CppDelete, CppDelete
-  | CFree, CppDelete
-  | CppDelete, CFree
-  | EndIterator, EndIterator
-  | GoneOutOfScope _, GoneOutOfScope _
-  | OptionalEmpty, OptionalEmpty
-  | StdVector _, StdVector _
-  | JavaIterator _, JavaIterator _ ->
+  | (CFree | CppDelete), (CFree | CppDelete) ->
       true
   | _ ->
-      false
+      equal v1 v2
 
 
 let describe f cause =

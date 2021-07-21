@@ -1154,6 +1154,14 @@ module NSCollection = struct
     {exec; check= no_check}
 
 
+  let new_collection_by_init coll_exp =
+    let exec model_env ~ret:((ret_id, _) as ret) mem =
+      create_collection model_env ~ret mem ~size_exp:Exp.zero
+      |> (addAll ret_id coll_exp).exec model_env ~ret
+    in
+    {exec; check= no_check}
+
+
   let iterator coll_exp =
     let exec {integer_type_widths= _; location} ~ret:(id, _) mem =
       let elements_locs = eval_collection_internal_array_locs coll_exp mem in
@@ -1239,7 +1247,7 @@ module JavaClass = struct
             Procname.make_java
               ~class_name:(Typ.Name.Java.from_string class_name_str)
               ~return_type:(Some Typ.(mk_ptr (mk_array (mk_ptr (mk_struct class_name)))))
-              ~method_name:"values" ~parameters:[] ~kind:Procname.Java.Static ()
+              ~method_name:"values" ~parameters:[] ~kind:Procname.Java.Static
           in
           match get_summary enum_values_pname with
           | Some enum_values_mem ->
@@ -1544,8 +1552,8 @@ let objc_malloc exp =
     | Exp.Sizeof {typ} when PatternMatch.ObjectiveC.implements_collection tenv (Typ.to_string typ)
       ->
         NSCollection.new_collection.exec model ~ret mem
-    | Exp.Sizeof {typ} when PatternMatch.ObjectiveC.implements "NSString" tenv (Typ.to_string typ)
-      ->
+    | Exp.Sizeof {typ}
+      when PatternMatch.ObjectiveC.implements_ns_string_variants tenv (Typ.to_string typ) ->
         (NSString.create_with_c_string (Exp.Const (Const.Cstr ""))).exec model ~ret mem
     | _ ->
         (malloc ~can_be_zero exp).exec model ~ret mem
@@ -1700,6 +1708,8 @@ module Call = struct
         &:: "firstObject" <>$ capt_var_exn $!--> NSCollection.get_first
       ; +PatternMatch.ObjectiveC.implements "NSDictionary"
         &:: "initWithDictionary:" <>$ capt_var_exn $+ capt_exp $--> NSCollection.copy
+      ; +PatternMatch.ObjectiveC.implements "NSDictionary"
+        &:: "dictionaryWithDictionary:" <>$ capt_exp $--> NSCollection.new_collection_by_init
       ; +PatternMatch.ObjectiveC.implements "NSSet"
         &:: "initWithArray:" <>$ capt_var_exn $+ capt_exp $--> NSCollection.copy
       ; +PatternMatch.ObjectiveC.implements "NSArray"
@@ -1768,9 +1778,10 @@ module Call = struct
         &:: "reverseObjectEnumerator" <>$ capt_exp $--> NSCollection.iterator
       ; +PatternMatch.ObjectiveC.implements "NSNumber" &:: "numberWithInt:" <>$ capt_exp $--> id
       ; +PatternMatch.ObjectiveC.implements "NSNumber" &:: "integerValue" <>$ capt_exp $--> id
+      ; +PatternMatch.ObjectiveC.implements "NSAttributedString" &:: "string" <>$ capt_exp $!--> id
       ; +PatternMatch.ObjectiveC.implements "NSString"
         &:: "stringWithUTF8String:" <>$ capt_exp $!--> NSString.create_with_c_string
-      ; +PatternMatch.ObjectiveC.implements "NSString"
+      ; +PatternMatch.ObjectiveC.implements_ns_string_variants
         &:: "length" <>$ capt_exp $--> NSString.length
       ; +PatternMatch.ObjectiveC.implements "NSString"
         &:: "stringByAppendingString:" <>$ capt_exp $+ capt_exp $!--> NSString.concat
@@ -1780,7 +1791,10 @@ module Call = struct
         &:: "appendString:" <>$ capt_exp $+ capt_exp $--> NSString.append_string
       ; +PatternMatch.ObjectiveC.implements "NSString"
         &:: "componentsSeparatedByString:" <>$ capt_exp $+ any_arg $--> NSString.split
-      ; +PatternMatch.ObjectiveC.implements "NSString"
+      ; +PatternMatch.ObjectiveC.implements "NSAttributedString"
+        &:: "initWithString:attributes:" <>$ capt_exp $+ capt_exp $+ any_arg
+        $--> NSString.init_with_string
+      ; +PatternMatch.ObjectiveC.implements_ns_string_variants
         &:: "initWithString:" <>$ capt_exp $+ capt_exp $--> NSString.init_with_string
       ; +PatternMatch.ObjectiveC.implements "NSString"
         &:: "initWithBytes:length:encoding:" <>$ capt_exp $+ capt_exp $+ capt_exp $+ any_arg

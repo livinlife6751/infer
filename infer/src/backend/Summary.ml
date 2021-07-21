@@ -8,11 +8,10 @@
 
 open! IStd
 module F = Format
-module L = Logging
 
 module Stats = struct
   type t =
-    { failure_kind: SymOp.failure_kind option
+    { failure_kind: Exception.failure_kind option
           (** what type of failure stopped the analysis (if any) *)
     ; symops: int  (** Number of SymOp's throughout the whole analysis of the function *)
     ; mutable nodes_visited: IntSet.t  (** Nodes visited *) }
@@ -32,7 +31,7 @@ module Stats = struct
   let pp_failure_kind_opt fmt failure_kind_opt =
     match failure_kind_opt with
     | Some failure_kind ->
-        SymOp.pp_failure_kind fmt failure_kind
+        Exception.pp_failure_kind fmt failure_kind
     | None ->
         F.pp_print_string fmt "NONE"
 
@@ -349,11 +348,7 @@ module OnDisk = struct
 
   let make_filtered_iterator_from_config ~iter ~f =
     let filter =
-      if Option.is_some Config.procedures_filter then (
-        if Config.test_filtering then (
-          Inferconfig.test () ;
-          L.exit 0 ) ;
-        Lazy.force Filtering.procedures_filter )
+      if Option.is_some Config.procedures_filter then Lazy.force Filtering.procedures_filter
       else fun _ _ -> true
     in
     iter ~filter ~f

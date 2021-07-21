@@ -44,6 +44,11 @@ let of_binop bop f1 f2 phi =
   (phi, AbstractValueOperand v)
 
 
+let instanceof typ x_var y_var phi =
+  let+ phi, _new_eqs = and_equal_instanceof y_var x_var typ phi in
+  phi
+
+
 let ( + ) f1 f2 phi = of_binop (PlusA None) f1 f2 phi
 
 let ( - ) f1 f2 phi = of_binop (MinusA None) f1 f2 phi
@@ -119,25 +124,51 @@ let normalized_pp fmt = function
 
 let test ~f phi =
   AbstractValue.State.set init_vars_state ;
-  phi ttrue >>= f >>| fst |> F.printf "%a" normalized_pp
+  phi ttrue >>= f |> F.printf "%a" normalized_pp
 
 
 let dummy_tenv = Tenv.create ()
 
 let dummy_get_dynamic_type _ = None
 
-let normalize phi = test ~f:(normalize dummy_tenv ~get_dynamic_type:dummy_get_dynamic_type) phi
+let nil_typ = Typ.mk (Tstruct (ErlangType Nil))
+
+let cons_typ = Typ.mk (Tstruct (ErlangType Cons))
+
+let normalize_with ~get_dynamic_type phi =
+  test ~f:(fun phi -> normalize dummy_tenv ~get_dynamic_type phi >>| fst) phi
+
+
+let normalize phi = normalize_with ~get_dynamic_type:dummy_get_dynamic_type phi
+
+let normalize_with_all_types_Nil phi = normalize_with ~get_dynamic_type:(fun _ -> Some nil_typ) phi
 
 let simplify ~keep phi =
-  test
-    ~f:
-      (simplify dummy_tenv ~get_dynamic_type:dummy_get_dynamic_type
-         ~keep:(AbstractValue.Set.of_list keep))
-    phi
+  let keep = AbstractValue.Set.of_list keep in
+  test phi ~f:(fun phi ->
+      (* keep variables as if they were in the pre-condition, which makes [simplify] keeps the most
+         facts (eg atoms in [pruned] may be discarded if their variables are not in the pre) *)
+      simplify dummy_tenv ~get_dynamic_type:dummy_get_dynamic_type ~can_be_pruned:keep ~keep phi
+      >>| fst3 )
 
 
 let%test_module "normalization" =
   ( module struct
+    let%expect_test _ =
+      normalize_with_all_types_Nil
+        (instanceof nil_typ x_var z_var && instanceof nil_typ y_var w_var && z = i 0) ;
+      [%expect {|unsat|}]
+
+    let%expect_test _ =
+      normalize_with_all_types_Nil
+        (instanceof nil_typ x_var z_var && instanceof nil_typ y_var w_var && w = i 0) ;
+      [%expect {|unsat|}]
+
+    let%expect_test _ =
+      normalize_with_all_types_Nil
+        (instanceof cons_typ x_var y_var && instanceof nil_typ x_var y_var) ;
+      [%expect {|unsat|}]
+
     let%expect_test _ =
       normalize (x < y) ;
       [%expect

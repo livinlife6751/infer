@@ -276,7 +276,19 @@ val multiple_weakself : t
 
 val mutable_local_variable_in_component_file : t
 
+val nil_block_call : t
+
+val nil_insertion_into_collection : t
+
 val nil_messaging_to_non_pod : t
+
+val no_match_of_rhs : t
+
+val no_matching_case_clause : t
+
+val no_matching_function_clause : t
+
+val no_true_branch_in_if : t
 
 val null_dereference : t
 

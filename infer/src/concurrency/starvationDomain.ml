@@ -128,15 +128,20 @@ module Lock = struct
 
 
   let is_recursive tenv lock =
-    let is_class_and_recursive_lock = function
-      | {Typ.desc= Tptr ({desc= Tstruct name}, _)} | {desc= Tstruct name} ->
-          ConcurrencyModels.is_recursive_lock_type name
-      | typ ->
-          L.debug Analysis Verbose "Asked if non-struct type %a is a recursive lock type.@."
-            (Typ.pp_full Pp.text) typ ;
-          true
-    in
-    get_typ tenv lock |> Option.exists ~f:is_class_and_recursive_lock
+    (* We default to recursive if the type can't be found or looks malformed.
+       This reduces self-deadlock FPs. *)
+    match get_typ tenv lock with
+    | Some {Typ.desc= Tptr ({desc= Tstruct name}, _) | Tstruct name} ->
+        ConcurrencyModels.is_recursive_lock_type name
+    | Some typ ->
+        (* weird type passed as a lock, return default *)
+        L.debug Analysis Verbose "Asked if non-struct type %a is a recursive lock type.@\n"
+          (Typ.pp_full Pp.text) typ ;
+        true
+    | None ->
+        (* could not find type definition, return default *)
+        L.debug Analysis Verbose "Could not resolve type for lock %a.@\n" pp lock ;
+        true
 end
 
 module AccessExpressionDomain = struct

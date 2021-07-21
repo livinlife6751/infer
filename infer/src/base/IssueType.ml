@@ -639,7 +639,7 @@ let impure_function =
 
 
 let inefficient_keyset_iterator =
-  register ~id:"INEFFICIENT_KEYSET_ITERATOR" Error InefficientKeysetIterator
+  register ~id:"INEFFICIENT_KEYSET_ITERATOR" Warning InefficientKeysetIterator
     ~user_documentation:[%blob "../../documentation/issues/INEFFICIENT_KEYSET_ITERATOR.md"]
 
 
@@ -789,19 +789,49 @@ let mutable_local_variable_in_component_file =
       [%blob "../../documentation/issues/MUTABLE_LOCAL_VARIABLE_IN_COMPONENT_FILE.md"]
 
 
+let nil_block_call =
+  register ~id:"NIL_BLOCK_CALL" Error Pulse
+    ~user_documentation:"Calling a nil block is an error in Objective-C."
+
+
+let nil_insertion_into_collection =
+  register ~id:"NIL_INSERTION_INTO_COLLECTION" Error Pulse
+    ~user_documentation:"Inserting nil into a collection is an error in Objective-C."
+
+
+let nil_messaging_to_non_pod =
+  register ~id:"NIL_MESSAGING_TO_NON_POD" Error Pulse
+    ~user_documentation:[%blob "../../documentation/issues/NIL_MESSAGING_TO_NON_POD.md"]
+
+
+let no_match_of_rhs =
+  register ~id:"NO_MATCH_OF_RHS" Error Pulse
+    ~user_documentation:[%blob "../../documentation/issues/NO_MATCH_OF_RHS.md"]
+
+
+let no_matching_case_clause =
+  register ~id:"NO_MATCHING_CASE_CLAUSE" Error Pulse
+    ~user_documentation:[%blob "../../documentation/issues/NO_MATCHING_CASE_CLAUSE.md"]
+
+
+let no_matching_function_clause =
+  register ~id:"NO_MATCHING_FUNCTION_CLAUSE" Error Pulse
+    ~user_documentation:[%blob "../../documentation/issues/NO_MATCHING_FUNCTION_CLAUSE.md"]
+
+
+let no_true_branch_in_if =
+  register ~id:"NO_TRUE_BRANCH_IN_IF" Error Pulse
+    ~user_documentation:[%blob "../../documentation/issues/NO_TRUE_BRANCH_IN_IF.md"]
+
+
 let null_dereference =
   register ~id:"NULL_DEREFERENCE" Error Biabduction
     ~user_documentation:"See [NULLPTR_DEREFERENCE](#nullptr_dereference)."
 
 
 let nullptr_dereference =
-  register ~id:"NULLPTR_DEREFERENCE" Error Pulse
+  register ~id:"NULLPTR_DEREFERENCE" ~hum:"Null Dereference" Error Pulse
     ~user_documentation:[%blob "../../documentation/issues/NULLPTR_DEREFERENCE.md"]
-
-
-let nil_messaging_to_non_pod =
-  register ~enabled:false ~id:"NIL_MESSAGING_TO_NON_POD" Error Pulse
-    ~user_documentation:"See [NULLPTR_DEREFERENCE](#nullptr_dereference)."
 
 
 let optional_empty_access =
@@ -918,7 +948,8 @@ let thread_safety_violation =
 let thread_safety_violation_nullsafe =
   register Warning ~id:"THREAD_SAFETY_VIOLATION_NULLSAFE" RacerD
     ~hum:"Thread Safety Violation in `@Nullsafe` Class"
-    ~user_documentation:[%blob "../../documentation/issues/THREAD_SAFETY_VIOLATION.md"]
+    ~user_documentation:
+      "A [Thread Safety Violation](#thread_safety_violation) in a `@Nullsafe` class."
 
 
 let complexity_increase ~kind ~is_on_ui_thread =
@@ -936,7 +967,7 @@ let uninitialized_value =
 
 
 let uninitialized_value_pulse =
-  register ~enabled:false ~id:"PULSE_UNINITIALIZED_VALUE" Error Pulse ~hum:"Uninitialized Value"
+  register ~id:"PULSE_UNINITIALIZED_VALUE" Error Pulse ~hum:"Uninitialized Value"
     ~user_documentation:
       "See [UNINITIALIZED_VALUE](#uninitialized_value). Re-implemented using Pulse."
 

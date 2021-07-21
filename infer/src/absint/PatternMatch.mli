@@ -202,6 +202,9 @@ module ObjectiveC : sig
   val implements : string -> Tenv.t -> string -> bool
   (** Check whether class implements a given ObjC class *)
 
+  val implements_ns_string_variants : Tenv.t -> string -> bool
+  (** Check whether class implements NSString or NSAttributedString *)
+
   val conforms_to : protocol:string -> Tenv.t -> string -> bool
   (** Check whether class conforms to a given ObjC protocol *)
 
@@ -212,8 +215,7 @@ module ObjectiveC : sig
   val is_core_foundation_create_or_copy : Tenv.t -> string -> bool
 
   val is_core_graphics_release : Tenv.t -> string -> bool
-
-  val is_modelled_as_alloc : Tenv.t -> string -> bool
-
-  val is_modelled_as_release : Tenv.t -> string -> bool
 end
+
+val is_entry_point : Procname.t -> bool
+(** Does the function name correspond to a known entry point? Currently only matches ["main"] *)

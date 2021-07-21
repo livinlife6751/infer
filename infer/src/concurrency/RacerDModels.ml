@@ -24,98 +24,175 @@ let make_android_support_template suffix methods =
   ; {default with classname= "androidx.core.util." ^ suffix; methods} ]
 
 
-let is_java_container_write =
+let is_csharp_container_write =
   let open MethodMatcher in
-  let array_methods =
-    ["append"; "clear"; "delete"; "put"; "remove"; "removeAt"; "removeAtRange"; "setValueAt"]
-  in
-  (* https://developer.android.com/reference/androidx/core/util/Pools.SimplePool *)
-  make_android_support_template "Pools$SimplePool" ["acquire"; "release"]
-  (* https://developer.android.com/reference/android/support/v4/util/SimpleArrayMap *)
-  @ make_android_support_template "SimpleArrayMap"
-      ["clear"; "ensureCapacity"; "put"; "putAll"; "remove"; "removeAt"; "setValueAt"]
-  (* https://developer.android.com/reference/android/support/v4/util/SparseArrayCompat *)
-  @ make_android_support_template "SparseArrayCompat" array_methods
-  @ (* https://developer.android.com/reference/android/util/SparseArray *)
-  [ {default with classname= "android.util.SparseArray"; methods= array_methods}
-  ; (* https://docs.oracle.com/javase/8/docs/api/java/util/List.html
-       Only methods not in parent interface [Collection] are listed *)
-    {default with classname= "java.util.List"; methods= ["replaceAll"; "retainAll"; "set"; "sort"]}
-  ; (* https://docs.oracle.com/javase/8/docs/api/java/util/Map.html *)
-    { default with
-      classname= "java.util.Map"
-    ; methods= ["clear"; "merge"; "put"; "putAll"; "putIfAbsent"; "remove"; "replace"; "replaceAll"]
-    }
-  ; (* https://docs.oracle.com/javase/8/docs/api/java/util/Collection.html *)
-    { default with
-      classname= "java.util.Collection"
-    ; methods= ["add"; "addAll"; "clear"; "remove"; "removeAll"; "removeIf"] }
-  ; (* https://docs.oracle.com/javase/8/docs/api/javax/crypto/Mac.html *)
-    {default with classname= "javax.crypto.Mac"; methods= ["update"; "init"; "doFinal"]} ]
+  [ { default with
+      classname= "System.Collections.Generic.List`1"
+    ; methods=
+        [ "Add"
+        ; "AddRange"
+        ; "Clear"
+        ; "Insert"
+        ; "InsertRange"
+        ; "Remove"
+        ; "RemoveAll"
+        ; "RemoveAt"
+        ; "RemoveRange"
+        ; "set_Item" ] }
+  ; { default with
+      classname= "System.Collections.Generic.Dictionary`2"
+    ; methods= ["Add"; "Clear"; "Remove"; "TryAdd"; "set_Item"] } ]
   |> of_records
+
+
+let is_csharp_container_read =
+  let open MethodMatcher in
+  [ { default with
+      classname= "System.Collections.Generic.List`1"
+    ; methods=
+        [ "BinarySearch"
+        ; "Contains"
+        ; "CopyTo"
+        ; "Equals"
+        ; "Exists"
+        ; "Find"
+        ; "FindAll"
+        ; "FindIndex"
+        ; "FindLast"
+        ; "FindLastIndex"
+        ; "GetEnumerator"
+        ; "GetHashCode"
+        ; "GetRange"
+        ; "IndexOf"
+        ; "LastIndexOf"
+        ; "MemberwiseClone"
+        ; "ToArray"
+        ; "TrueForAll"
+        ; "get_Item"
+        ; "get_Count" ] }
+  ; { default with
+      classname= "System.Collections.Generic.Dictionary`2"
+    ; methods=
+        [ "ContainsKey"
+        ; "ContainsValue"
+        ; "Equals"
+        ; "GetHashCode"
+        ; "TryGetValue"
+        ; "get_Item"
+        ; "get_Count" ] } ]
+  |> of_records
+
+
+let is_java_container_write =
+  let matcher =
+    let open MethodMatcher in
+    let array_methods =
+      ["append"; "clear"; "delete"; "put"; "remove"; "removeAt"; "removeAtRange"; "setValueAt"]
+    in
+    (* https://developer.android.com/reference/androidx/core/util/Pools.SimplePool *)
+    make_android_support_template "Pools$SimplePool" ["acquire"; "release"]
+    (* https://developer.android.com/reference/android/support/v4/util/SimpleArrayMap *)
+    @ make_android_support_template "SimpleArrayMap"
+        ["clear"; "ensureCapacity"; "put"; "putAll"; "remove"; "removeAt"; "setValueAt"]
+    (* https://developer.android.com/reference/android/support/v4/util/SparseArrayCompat *)
+    @ make_android_support_template "SparseArrayCompat" array_methods
+    @ (* https://developer.android.com/reference/android/util/SparseArray *)
+    [ {default with classname= "android.util.SparseArray"; methods= array_methods}
+    ; (* https://docs.oracle.com/javase/8/docs/api/java/util/List.html
+         Only methods not in parent interface [Collection] are listed *)
+      {default with classname= "java.util.List"; methods= ["replaceAll"; "retainAll"; "set"; "sort"]}
+    ; (* https://docs.oracle.com/javase/8/docs/api/java/util/Map.html *)
+      { default with
+        classname= "java.util.Map"
+      ; methods=
+          ["clear"; "merge"; "put"; "putAll"; "putIfAbsent"; "remove"; "replace"; "replaceAll"] }
+    ; (* https://docs.oracle.com/javase/8/docs/api/java/util/Collection.html *)
+      { default with
+        classname= "java.util.Collection"
+      ; methods= ["add"; "addAll"; "clear"; "remove"; "removeAll"; "removeIf"] }
+    ; (* https://docs.oracle.com/javase/8/docs/api/javax/crypto/Mac.html *)
+      {default with classname= "javax.crypto.Mac"; methods= ["update"; "init"; "doFinal"]} ]
+    |> of_records
+  in
+  fun tenv (pn : Procname.t) ->
+    match pn with
+    | Java java_pn ->
+        (not (Procname.Java.is_static java_pn)) && matcher tenv pn []
+    | _ ->
+        L.die InternalError "is_java_container_write called with a non-Java procname.@\n"
 
 
 let is_java_container_read =
-  let open MethodMatcher in
-  let array_methods = ["clone"; "get"; "indexOfKey"; "indexOfValue"; "keyAt"; "size"; "valueAt"] in
-  (* https://developer.android.com/reference/android/support/v4/util/SimpleArrayMap *)
-  make_android_support_template "SimpleArrayMap"
-    [ "containsKey"
-    ; "containsValue"
-    ; "get"
-    ; "hashCode"
-    ; "indexOfKey"
-    ; "isEmpty"
-    ; "keyAt"
-    ; "size"
-    ; "valueAt" ]
-  (* https://developer.android.com/reference/android/support/v4/util/SparseArrayCompat *)
-  @ make_android_support_template "SparseArrayCompat" array_methods
-  @ (* https://developer.android.com/reference/android/util/SparseArray *)
-  [ {default with classname= "android.util.SparseArray"; methods= array_methods}
-  ; (* https://docs.oracle.com/javase/8/docs/api/java/util/List.html
-       Only methods not in parent interface [Collection] are listed *)
-    { default with
-      classname= "java.util.List"
-    ; methods= ["get"; "indexOf"; "isEmpty"; "lastIndexOf"; "listIterator"] }
-  ; (* https://docs.oracle.com/javase/8/docs/api/java/util/Map.html *)
-    { default with
-      classname= "java.util.Map"
-    ; methods=
-        [ "compute"
-        ; "computeIfAbsent"
-        ; "computeIfPresent"
-        ; "containsKey"
-        ; "containsValue"
-        ; "entrySet"
-        ; "equals"
-        ; "forEach"
-        ; "get"
-        ; "getOrDefault"
-        ; "hashCode"
-        ; "isEmpty"
-        ; "keySet"
-        ; "size"
-        ; "values" ] }
-  ; (* https://docs.oracle.com/javase/8/docs/api/java/util/Collection.html *)
-    { default with
-      classname= "java.util.Collection"
-    ; methods=
-        [ "contains"
-        ; "containsAll"
-        ; "equals"
-        ; "get"
-        ; "hashCode"
-        ; "isEmpty"
-        ; "iterator"
-        ; "parallelStream"
-        ; "size"
-        ; "spliterator"
-        ; "stream"
-        ; "toArray" ] }
-  ; (* https://docs.oracle.com/javase/8/docs/api/javax/crypto/Mac.html *)
-    {default with classname= "javax.crypto.Mac"; methods= ["doFinal"]} ]
-  |> of_records
+  let matcher =
+    let open MethodMatcher in
+    let array_methods =
+      ["clone"; "get"; "indexOfKey"; "indexOfValue"; "keyAt"; "size"; "valueAt"]
+    in
+    (* https://developer.android.com/reference/android/support/v4/util/SimpleArrayMap *)
+    make_android_support_template "SimpleArrayMap"
+      [ "containsKey"
+      ; "containsValue"
+      ; "get"
+      ; "hashCode"
+      ; "indexOfKey"
+      ; "isEmpty"
+      ; "keyAt"
+      ; "size"
+      ; "valueAt" ]
+    (* https://developer.android.com/reference/android/support/v4/util/SparseArrayCompat *)
+    @ make_android_support_template "SparseArrayCompat" array_methods
+    @ (* https://developer.android.com/reference/android/util/SparseArray *)
+    [ {default with classname= "android.util.SparseArray"; methods= array_methods}
+    ; (* https://docs.oracle.com/javase/8/docs/api/java/util/List.html
+         Only methods not in parent interface [Collection] are listed *)
+      { default with
+        classname= "java.util.List"
+      ; methods= ["get"; "indexOf"; "isEmpty"; "lastIndexOf"; "listIterator"] }
+    ; (* https://docs.oracle.com/javase/8/docs/api/java/util/Map.html *)
+      { default with
+        classname= "java.util.Map"
+      ; methods=
+          [ "compute"
+          ; "computeIfAbsent"
+          ; "computeIfPresent"
+          ; "containsKey"
+          ; "containsValue"
+          ; "entrySet"
+          ; "equals"
+          ; "forEach"
+          ; "get"
+          ; "getOrDefault"
+          ; "hashCode"
+          ; "isEmpty"
+          ; "keySet"
+          ; "size"
+          ; "values" ] }
+    ; (* https://docs.oracle.com/javase/8/docs/api/java/util/Collection.html *)
+      { default with
+        classname= "java.util.Collection"
+      ; methods=
+          [ "contains"
+          ; "containsAll"
+          ; "equals"
+          ; "get"
+          ; "hashCode"
+          ; "isEmpty"
+          ; "iterator"
+          ; "parallelStream"
+          ; "size"
+          ; "spliterator"
+          ; "stream"
+          ; "toArray" ] }
+    ; (* https://docs.oracle.com/javase/8/docs/api/javax/crypto/Mac.html *)
+      {default with classname= "javax.crypto.Mac"; methods= ["doFinal"]} ]
+    |> of_records
+  in
+  fun tenv (pn : Procname.t) ->
+    match pn with
+    | Java java_pn ->
+        (not (Procname.Java.is_static java_pn)) && matcher tenv pn []
+    | _ ->
+        L.die InternalError "is_java_container_read called with a non-Java procname.@\n"
 
 
 let is_cpp_container_read =
@@ -138,25 +215,29 @@ let is_cpp_container_write =
 
 
 let is_container_write tenv pn =
-  match pn with
-  | Procname.Java _ when is_java_container_write tenv pn [] ->
-      true
-  | (Procname.ObjC_Cpp _ | C _) when is_cpp_container_write pn ->
-      true
+  match (pn : Procname.t) with
+  | CSharp _ ->
+      is_csharp_container_write tenv pn []
+  | Java _ ->
+      is_java_container_write tenv pn
+  | ObjC_Cpp _ | C _ ->
+      is_cpp_container_write pn
   | _ ->
       false
 
 
 let is_container_read tenv pn =
-  match pn with
-  | Procname.Java _ ->
-      is_java_container_read tenv pn []
+  match (pn : Procname.t) with
+  | CSharp _ ->
+      is_csharp_container_read tenv pn []
+  | Java _ ->
+      is_java_container_read tenv pn
   (* The following order matters: we want to check if pname is a container write
      before we check if pname is a container read. This is due to a different
      treatment between std::map::operator[] and all other operator[]. *)
-  | Procname.ObjC_Cpp _ | C _ ->
+  | ObjC_Cpp _ | C _ ->
       (not (is_cpp_container_write pn)) && is_cpp_container_read pn
-  | _ ->
+  | Erlang _ | Linters_dummy_method | Block _ | WithBlockParameters _ ->
       false
 
 
@@ -169,7 +250,7 @@ let is_functional pname =
       match (Procname.Java.get_class_name java_pname, Procname.Java.get_method java_pname) with
       | "android.content.res.Resources", method_name ->
           (* all methods of Resources are considered @Functional except for the ones in this
-             blacklist *)
+             block list *)
           let non_functional_resource_methods =
             [ "getAssets"
             ; "getConfiguration"
@@ -509,4 +590,64 @@ let is_synchronized_container callee_pname (access_exp : HilExp.AccessExpression
 
 
 let is_initializer tenv proc_name =
-  Procname.is_constructor proc_name || FbThreadSafety.is_custom_init tenv proc_name
+  Procname.is_constructor proc_name
+  || FbThreadSafety.is_custom_init tenv proc_name
+  || PatternMatch.override_exists
+       (fun pname -> Annotations.pname_has_return_annot pname Annotations.ia_is_initializer)
+       tenv proc_name
+
+
+let get_current_class_and_superclasses_satisfying_attr_check check tenv pname =
+  match pname with
+  | Procname.Java java_pname ->
+      let current_class = Procname.Java.get_class_type_name java_pname in
+      let satisfying_classes =
+        PatternMatch.Java.find_superclasses_with_attributes check tenv current_class
+      in
+      Some (current_class, satisfying_classes)
+  | _ ->
+      None
+
+
+module Litho = struct
+  let component_annots = ["MountSpec"; "LayoutSpec"]
+
+  let section_annots = ["DiffSectionSpec"; "GroupSectionSpec"]
+
+  let spec_annots = List.append component_annots section_annots
+
+  let get_class_annot pname tenv =
+    let helper annot =
+      let is_annotated ia = Annotations.ia_ends_with ia annot in
+      match get_current_class_and_superclasses_satisfying_attr_check is_annotated tenv pname with
+      | Some (current_class, (_ :: _ as classes)) ->
+          if List.mem ~equal:Typ.Name.equal classes current_class then Some ("current ", annot)
+          else Some ("a super", annot)
+      | _ ->
+          None
+    in
+    List.find_map ~f:helper spec_annots
+
+
+  (* "ann" is typically a suffix of an annotation, so if ann is "LayoutSpec" the developer would have
+     written "@LayoutSpec".  qualifier is " this " or "a super", the latter corresponding to
+     superclass. *)
+  let message (qualifier, ann) =
+    let mes1 =
+      if List.mem ~equal:String.equal component_annots ann then
+        "Litho components are required to be thread safe because of multi-threaded layout."
+      else if List.mem ~equal:String.equal section_annots ann then
+        "Sections are required to be thread safe because changesets are calculated in the \
+         background."
+      else (*should not get here*)
+        ""
+    in
+    (* This "round the houses" way of doing things, where developer writes annotation with @, we pass
+       around annotation without @, then add it back here, is just because we use ia_ends_with and it
+       is not worth adding stuff to annotations.ml to make the code here simpler *)
+    Format.asprintf "@\n %s Reporting because %sclass is annotated %a" mes1 qualifier
+      MarkupFormatter.pp_monospaced ("@" ^ ann)
+end
+
+let get_litho_explanation tenv pname =
+  Litho.get_class_annot pname tenv |> Option.map ~f:Litho.message

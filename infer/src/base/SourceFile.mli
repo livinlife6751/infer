@@ -7,7 +7,7 @@
 
 open! IStd
 
-type t [@@deriving compare]
+type t [@@deriving compare, sexp_of]
 
 (** Maps from source_file *)
 module Map : Caml.Map.S with type key = t
@@ -20,9 +20,9 @@ module Hash : Caml.Hashtbl.S with type key = t
 val is_invalid : t -> bool
 (** Is the source file the invalid source file? *)
 
-val changed_sources_from_changed_files : string list -> Set.t
-(** Set of files read from --changed-files-index file, None if option not specified NOTE: it may
-    include extra source_files if --changed-files-index contains paths to header files *)
+val read_config_changed_files : unit -> Set.t option
+(** return the list of changed files as read from Config.changed_files_index. NOTE: it may include
+    extra source_files if --changed-files-index contains paths to header files. *)
 
 val invalid : string -> t
 (** Invalid source file *)
@@ -60,7 +60,7 @@ val to_string : ?force_relative:bool -> t -> string
 (** convert a source file to a string WARNING: result may not be valid file path, do not use this
     function to perform operations on filenames *)
 
-val has_extension : t -> ext:string -> bool
+val has_extension : ext:string -> t -> bool
 (** returns whether the source file has provided extension *)
 
 module SQLite : SqliteUtils.Data with type t = t

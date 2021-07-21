@@ -210,34 +210,29 @@ let read_json_file path =
   try Ok (Yojson.Basic.from_file path) with Sys_error msg | Yojson.Json_error msg -> Error msg
 
 
+let read_safe_json_file path =
+  try Ok (Yojson.Safe.from_file path) with Sys_error msg | Yojson.Json_error msg -> Error msg
+
+
 let do_finally_swallow_timeout ~f ~finally =
-  let res =
-    try f ()
-    with exc ->
-      IExn.reraise_after exc ~f:(fun () ->
-          try finally () |> ignore with _ -> (* swallow in favor of the original exception *) () )
-  in
-  let res' = finally () in
-  (res, res')
-
-
-let try_finally_swallow_timeout ~f ~finally =
-  let res, () = do_finally_swallow_timeout ~f ~finally in
-  res
+  let res_finally = ref None in
+  let finally () = res_finally := Some (finally ()) in
+  let res = Exception.try_finally ~f ~finally in
+  (res, Option.value_exn !res_finally)
 
 
 let with_file_in file ~f =
   let ic = In_channel.create file in
   let f () = f ic in
   let finally () = In_channel.close ic in
-  try_finally_swallow_timeout ~f ~finally
+  Exception.try_finally ~f ~finally
 
 
 let with_file_out file ~f =
   let oc = Out_channel.create file in
   let f () = f oc in
   let finally () = Out_channel.close oc in
-  try_finally_swallow_timeout ~f ~finally
+  Exception.try_finally ~f ~finally
 
 
 let with_intermediate_temp_file_out file ~f =
@@ -247,7 +242,7 @@ let with_intermediate_temp_file_out file ~f =
     Out_channel.close temp_oc ;
     Unix.rename ~src:temp_filename ~dst:file
   in
-  try_finally_swallow_timeout ~f ~finally
+  Exception.try_finally ~f ~finally
 
 
 let write_json_to_file destfile json =
@@ -394,7 +389,7 @@ let assoc_of_yojson yojson_obj ~src =
       (* missing entries in config reported as empty list *)
       []
   | _ ->
-      die_expected_yojson_type "object" yojson_obj ~example:"{ \"foo\': \"bar\" }" ~src
+      die_expected_yojson_type "object" yojson_obj ~example:"{ \"foo\": \"bar\" }" ~src
 
 
 let string_of_yojson yojson_obj ~src =
@@ -410,7 +405,7 @@ let list_of_yojson yojson_obj ~src =
   | `List list ->
       list
   | _ ->
-      die_expected_yojson_type "list" yojson_obj ~example:"[ \"foo\', \"bar\" ]" ~src
+      die_expected_yojson_type "list" yojson_obj ~example:"[ \"foo\", \"bar\" ]" ~src
 
 
 let string_list_of_yojson yojson_obj ~src =
@@ -434,7 +429,7 @@ let timeit ~f =
 let do_in_dir ~dir ~f =
   let cwd = Unix.getcwd () in
   Unix.chdir dir ;
-  try_finally_swallow_timeout ~f ~finally:(fun () -> Unix.chdir cwd)
+  Exception.try_finally ~f ~finally:(fun () -> Unix.chdir cwd)
 
 
 let get_available_memory_MB () =
@@ -447,7 +442,7 @@ let get_available_memory_MB () =
       try Scanf.sscanf line "MemAvailable: %u kB" (fun mem_kB -> Some (mem_kB / 1024))
       with Scanf.Scan_failure _ -> scan_for_expected_output in_channel )
   in
-  if Sys.file_exists proc_meminfo <> `Yes then None
+  if not (ISys.file_exists proc_meminfo) then None
   else with_file_in proc_meminfo ~f:scan_for_expected_output
 
 

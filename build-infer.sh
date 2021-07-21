@@ -17,10 +17,10 @@ DEPENDENCIES_DIR="$INFER_ROOT/facebook/dependencies"
 PLATFORM="$(uname)"
 SANDCASTLE=${SANDCASTLE:-}
 NCPU="$(getconf _NPROCESSORS_ONLN 2>/dev/null || echo 1)"
-INFER_OPAM_DEFAULT_SWITCH="ocaml-variants.4.11.1+flambda"
-INFER_OPAM_DEFAULT_COMPILER="$INFER_OPAM_DEFAULT_SWITCH"
+INFER_OPAM_DEFAULT_SWITCH="4.12.0+flambda"
+INFER_OPAM_DEFAULT_SWITCH_OPTIONS="--package=ocaml-variants.4.12.0+options,ocaml-option-flambda"
 INFER_OPAM_SWITCH=${INFER_OPAM_SWITCH:-$INFER_OPAM_DEFAULT_SWITCH}
-INFER_OPAM_COMPILER=${INFER_OPAM_COMPILER:-$INFER_OPAM_DEFAULT_COMPILER}
+INFER_OPAM_SWITCH_OPTIONS=${INFER_OPAM_SWITCH_OPTIONS:-$INFER_OPAM_DEFAULT_SWITCH_OPTIONS}
 PLUGIN_DIR="$INFER_ROOT/facebook-clang-plugins"
 PLUGIN_SETUP_SCRIPT=${PLUGIN_SETUP_SCRIPT:-setup.sh}
 PLUGIN_SETUP="${PLUGIN_DIR}/clang/${PLUGIN_SETUP_SCRIPT}"
@@ -31,6 +31,7 @@ function usage() {
   echo " targets:"
   echo "   all      build everything (default)"
   echo "   clang    build C and Objective-C analyzer"
+  echo "   erlang   build Erlang analyzer"
   echo "   java     build Java analyzer"
   echo
   echo " options:"
@@ -41,13 +42,14 @@ function usage() {
   echo "   -y,--yes              automatically agree to everything"
   echo
   echo " examples:"
-  echo "    $0               # build Java and C/Objective-C analyzers"
-  echo "    $0 java clang    # equivalent way of doing the above"
-  echo "    $0 java          # build only the Java analyzer"
+  echo "    $0                    # build Java, Erlang and C/Objective-C analyzers"
+  echo "    $0 java erlang clang  # equivalent way of doing the above"
+  echo "    $0 java               # build only the Java analyzer"
 }
 
 # arguments
 BUILD_CLANG=${BUILD_CLANG:-no}
+BUILD_ERLANG=${BUILD_ERLANG:-no}
 BUILD_JAVA=${BUILD_JAVA:-no}
 INFER_CONFIGURE_OPTS=${INFER_CONFIGURE_OPTS:-""}
 INTERACTIVE=${INTERACTIVE:-yes}
@@ -58,17 +60,27 @@ USER_OPAM_SWITCH=no
 
 ORIG_ARGS="$*"
 
+function build_all() {
+  BUILD_CLANG=yes
+  BUILD_ERLANG=yes
+  BUILD_JAVA=yes
+}
+
 while [[ $# -gt 0 ]]; do
   opt_key="$1"
   case $opt_key in
     all)
-      BUILD_CLANG=yes
-      BUILD_JAVA=yes
+      build_all
       shift
       continue
       ;;
     clang)
       BUILD_CLANG=yes
+      shift
+      continue
+      ;;
+    erlang)
+      BUILD_ERLANG=yes
       shift
       continue
       ;;
@@ -108,10 +120,8 @@ while [[ $# -gt 0 ]]; do
   shift
 done
 
-# if no arguments then build both clang and Java
-if [ "$BUILD_CLANG" == "no" ] && [ "$BUILD_JAVA" == "no" ]; then
-  BUILD_CLANG=yes
-  BUILD_JAVA=yes
+if [ "$BUILD_CLANG" == "no" ] && [ "$BUILD_ERLANG" == "no" ] && [ "$BUILD_JAVA" == "no" ]; then
+  build_all
 fi
 
 # enable --yes option for some commands in non-interactive mode
@@ -126,16 +136,16 @@ fi
 
 setup_opam () {
     opam var root 1>/dev/null 2>/dev/null || opam init --reinit --bare --no-setup &&
-    opam_retry opam_switch_create_if_needed "$INFER_OPAM_SWITCH" "$INFER_OPAM_COMPILER" &&
+    opam_retry opam_switch_create_if_needed "$INFER_OPAM_SWITCH" "$INFER_OPAM_SWITCH_OPTIONS" &&
     opam switch set "$INFER_OPAM_SWITCH"
 }
 
 install_opam_deps () {
     local locked=
     if [ "$USE_OPAM_LOCK" == yes ]; then
-        locked=--locked
+        locked=.locked
     fi
-    opam install --deps-only "$INFER_ROOT"/opam/infer.opam $locked &&
+    opam install --deps-only "$INFER_ROOT"/opam/infer.opam$locked &&
     if [ -n "$SANDCASTLE" ]; then
         opam pin list | grep yojson || opam pin add yojson "${DEPENDENCIES_DIR}/yojson-1.7.0fix"
     fi
@@ -160,6 +170,9 @@ echo "preparing build... " >&2
 
 if [ "$BUILD_CLANG" == "no" ]; then
   INFER_CONFIGURE_OPTS+=" --disable-c-analyzers"
+fi
+if [ "$BUILD_ERLANG" == "no" ]; then
+  INFER_CONFIGURE_OPTS+=" --disable-erlang-analyzers"
 fi
 if [ "$BUILD_JAVA" == "no" ]; then
   INFER_CONFIGURE_OPTS+=" --disable-java-analyzers"

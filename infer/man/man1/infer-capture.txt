@@ -64,7 +64,7 @@ OPTIONS
            Proceed as if the first argument after -- was command. Possible
            values: ant, buck, gradle, gradlew, java, javac, cc, clang, gcc,
            clang++, c++, g++, make, configure, cmake, waf, mvn, mvnw,
-           ndk-build, xcodebuild.
+           ndk-build, rebar3, xcodebuild.
 
        --help
            Show this manual
@@ -125,13 +125,19 @@ BUCK OPTIONS
            Additional Buck flavors to append to targets discovered by the
            --buck-compilation-database option.
 
-       --buck-blacklist +regex
+       --buck-block-list +regex
            Skip capture of files matched by the specified regular expression.
            Only the clang, non-compilation-database                Buck integration is supported, not Java.
 
        --buck-clang
            Activates: Buck integration for clang-based targets
            (C/C++/Objective-C/Objective-C++). (Conversely: --no-buck-clang)
+
+       --buck-clang-use-toolchain-config
+           Activates: Suppress setting buck config values for the infer
+           binary and other values in the buck-clang-flavor integration and
+           instead rely on buck toolchain configuration options. (Conversely:
+           --no-buck-clang-use-toolchain-config)
 
        --buck-compilation-database { no-deps | deps }
            Buck integration using the compilation database, with or without
@@ -162,7 +168,7 @@ BUCK OPTIONS
            successful capture. Only valid for --buck-clang. (Conversely:
            --no-buck-merge-all-deps)
 
-       --buck-targets-blacklist +regex
+       --buck-targets-block-list +regex
            Skip capture of buck targets matched by the specified regular
            expression. Only valid for --buck-compilation-database.
 
@@ -223,10 +229,10 @@ CLANG OPTIONS
            format. Please note you still need to provide a compilation
            command.
 
-       --clang-blacklisted-flags +string
+       --clang-block-listed-flags +string
            Clang flags to filter out
 
-       --clang-blacklisted-flags-with-arg +string
+       --clang-block-listed-flags-with-arg +string
            Clang flags (taking args) to filter out
 
        --clang-compound-literal-init-limit int
@@ -267,8 +273,9 @@ CLANG OPTIONS
            Activates: Skip clang commands that Infer doesn't use to capture
            data (Conversely: --no-skip-non-capture-clang-commands)
 
-       --skip-translation-headers +path_prefix
-           Ignore headers whose path matches the given prefix
+       --skip-translation-headers +path_regex
+           Ignore declarations in headers whose path matches the given OCaml
+           regex from the start of the string during capture.
 
        --Xclang +string
            Pass values as command-line arguments to invocations of clang
@@ -278,11 +285,19 @@ CLANG OPTIONS
            analyze an iOS app. xcpretty just needs to be in the path, infer
            command is still just `infer -- <xcodebuild command>`.
            (Conversely: --no-xcpretty)
+ERLANG OPTIONS
+       --erlang-ast-dir dir
+           Also load AST from all .json files in the given path. These .json
+           files usually come from a previous run with --debug.
+
+       --erlang-skip-rebar3
+           Activates: Skip running rebar, to save time. It is useful together
+           with --erlang-ast-dir. (Conversely: --no-erlang-skip-rebar3)
 JAVA OPTIONS
        --bootclasspath string
            Specify the Java bootclasspath
 
-       --capture-blacklist regex
+       --capture-block-list regex
            Skip capture of files matched by the specified OCaml regular
            expression (only supported by the javac integration for now).
 
@@ -300,6 +315,14 @@ JAVA OPTIONS
        --java-version int
            The version of Java being used. Set it to your Java version if mvn
            is failing.
+
+       --kotlin-capture
+           Activates: Enable Kotlin capture (experimental, do not use).
+           (Conversely: --no-kotlin-capture)
+
+       --no-mask-sawja-exceptions
+           Deactivates: Mask exceptions thrown by Sawja/Javalib during Java
+           capture (Conversely: --mask-sawja-exceptions)
 
 
 ENVIRONMENT

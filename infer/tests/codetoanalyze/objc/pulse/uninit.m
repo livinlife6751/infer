@@ -6,16 +6,17 @@
  */
 #import <Foundation/Foundation.h>
 
-@interface Uninit : NSObject
-
-@property(nonatomic, assign) int obj_field;
-
-@end
-
 struct my_struct {
   int x;
   int y;
 };
+
+@interface Uninit : NSObject
+
+@property(nonatomic, assign) int obj_field;
+@property(nonatomic, readwrite) struct my_struct s;
+
+@end
 
 @implementation Uninit
 
@@ -113,6 +114,26 @@ dispatch_queue_t queue;
     x = self->_obj_field;
   }];
   return x;
+}
+
++ (int)getter_c_struct:(Uninit*)obj {
+  struct my_struct s = obj.s; // getter is called
+  return s.x;
+}
+
+- (int)call_getter_c_struct_ok {
+  Uninit* obj = [Uninit new];
+  struct my_struct s;
+  s.x = 1;
+  s.y = 2;
+  obj.s = s; // setter is called
+  return [Uninit getter_c_struct:obj];
+}
+
++ (void)call_setter_c_struct_bad {
+  struct my_struct s;
+  Uninit* obj = [Uninit new];
+  obj.s = s; // setter is called
 }
 
 @end

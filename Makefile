@@ -25,7 +25,7 @@ BUILD_SYSTEMS_TESTS += \
   clang_multiple_files \
   clang_translation \
   clang_unknown_ext \
-  clang_with_blacklisted_flags \
+  clang_with_block_listed_flags \
   clang_with_E_flag \
   clang_with_M_flag \
   clang_with_MD_flag \
@@ -54,6 +54,7 @@ DIRECT_TESTS += \
   c_frontend \
   c_performance \
   c_pulse \
+  c_pulse-isl \
   c_purity \
   c_uninit \
   cpp_annotation-reachability \
@@ -67,6 +68,7 @@ DIRECT_TESTS += \
   cpp_liveness \
   cpp_performance \
   cpp_pulse \
+  cpp_pulse-isl \
   cpp_quandary \
   cpp_racerd \
   cpp_siof \
@@ -75,7 +77,7 @@ DIRECT_TESTS += \
 
 ifneq ($(BUCK),no)
 BUILD_SYSTEMS_TESTS += \
-  buck_blacklist \
+  buck_block_list \
   buck-clang-db \
   buck_clang_test_determinator \
   buck_flavors \
@@ -128,6 +130,9 @@ DIRECT_TESTS += \
   objcpp_retain-cycles \
 
 ifeq ($(IS_FACEBOOK_TREE),yes)
+BUILD_SYSTEMS_TESTS += \
+  fb_differential_of_config_impact_report_objc
+
 DIRECT_TESTS += \
   objc_fb-config-impact \
   objc_fb-gk-interaction
@@ -142,6 +147,17 @@ BUILD_SYSTEMS_TESTS += xcodebuild
 endif
 endif # HAS_OBJC
 endif # BUILD_C_ANALYZERS
+
+ifeq ($(BUILD_ERLANG_ANALYZERS),yes)
+ifneq ($(REBAR3),no)
+DIRECT_TESTS += \
+  erlang_nonmatch \
+  erlang_topl \
+  erlang_features \
+
+BUILD_SYSTEMS_TESTS += rebar3
+endif
+endif # BUILD_ERLANG_ANALYZERS
 
 ifeq ($(BUILD_JAVA_ANALYZERS),yes)
 BUILD_SYSTEMS_TESTS += \
@@ -179,6 +195,7 @@ DIRECT_TESTS += \
   java_performance \
   java_performance-exclusive \
   java_pulse \
+  java_pulse-isl \
   java_purity \
   java_quandary \
   java_racerd \
@@ -186,6 +203,9 @@ DIRECT_TESTS += \
   java_starvation-dedup \
   java_starvation-whole-program \
   java_topl \
+
+# javac has trouble running in parallel on the same files
+direct_java_pulse-isl_test: direct_java_pulse_test
 
 ifeq ($(IS_FACEBOOK_TREE),yes)
 BUILD_SYSTEMS_TESTS += \
@@ -203,16 +223,13 @@ endif
 ifneq ($(ANT),no)
 BUILD_SYSTEMS_TESTS += ant
 endif
-
-
-
 ifneq ($(BUCK),no)
 BUILD_SYSTEMS_TESTS += buck_java_flavor
 endif
 ifneq ($(MVN),no)
 BUILD_SYSTEMS_TESTS += mvn
 endif
-endif
+endif # BUILD_JAVA_ANALYZERS
 
 DIRECT_TESTS += \
   dotnet_arithmetic \

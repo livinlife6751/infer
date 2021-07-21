@@ -18,14 +18,22 @@ end
 
 open! Types
 
-module type NoJoin = sig
+module type Comparable = sig
   include PrettyPrintable.PrintableType
 
   val leq : lhs:t -> rhs:t -> bool
 end
 
+module type Disjunct = sig
+  include Comparable
+
+  val equal_fast : t -> t -> bool
+end
+
 module type S = sig
-  include NoJoin
+  include PrettyPrintable.PrintableType
+
+  val leq : lhs:t -> rhs:t -> bool
 
   val join : t -> t -> t
 
@@ -175,13 +183,25 @@ module TopLifted (Domain : S) = struct
   let pp = TopLiftedUtils.pp ~pp:Domain.pp
 end
 
-module Pair (Domain1 : S) (Domain2 : S) = struct
+module PairBase (Domain1 : Comparable) (Domain2 : Comparable) = struct
   type t = Domain1.t * Domain2.t
 
   let leq ~lhs ~rhs =
     if phys_equal lhs rhs then true
     else Domain1.leq ~lhs:(fst lhs) ~rhs:(fst rhs) && Domain2.leq ~lhs:(snd lhs) ~rhs:(snd rhs)
 
+
+  let pp fmt astate = Pp.pair ~fst:Domain1.pp ~snd:Domain2.pp fmt astate
+end
+
+module PairDisjunct (Domain1 : Disjunct) (Domain2 : Disjunct) = struct
+  include PairBase (Domain1) (Domain2)
+
+  let equal_fast (x1, x2) (y1, y2) = Domain1.equal_fast x1 y1 && Domain2.equal_fast x2 y2
+end
+
+module Pair (Domain1 : S) (Domain2 : S) = struct
+  include PairBase (Domain1) (Domain2)
 
   let join astate1 astate2 =
     if phys_equal astate1 astate2 then astate1
@@ -199,9 +219,6 @@ module Pair (Domain1 : S) (Domain2 : S) = struct
           ( Domain1.widen ~prev:(fst prev) ~next:(fst next) ~num_iters
           , Domain2.widen ~prev:(snd prev) ~next:(snd next) ~num_iters )
         prev next
-
-
-  let pp fmt astate = Pp.pair ~fst:Domain1.pp ~snd:Domain2.pp fmt astate
 end
 
 module Flat (V : PrettyPrintable.PrintableEquatableType) = struct
@@ -646,6 +663,8 @@ module SafeInvertedMap (Key : PrettyPrintable.PrintableOrderedType) (ValueDomain
   let fold_mapi = M.fold_mapi
 
   let of_seq = M.of_seq
+
+  let to_seq = M.to_seq
 
   let mapi f m =
     let tops = ref [] in

@@ -36,14 +36,14 @@ val and_eq_vars : AbstractValue.t -> AbstractValue.t -> t -> t * new_eqs
 
 val simplify :
      Tenv.t
+  -> can_be_pruned:AbstractValue.Set.t
   -> keep:AbstractValue.Set.t
   -> get_dynamic_type:(AbstractValue.t -> Typ.t option)
   -> t
-  -> (t * new_eqs) SatUnsat.t
-(** [simplify ~keep phi] attempts to get rid of as many variables in [fv phi] but not in [keep] as
-    possible *)
-
-val simplify_instanceof : Tenv.t -> get_dynamic_type:(AbstractValue.t -> Typ.t option) -> t -> t
+  -> (t * AbstractValue.Set.t * new_eqs) SatUnsat.t
+(** [simplify ~can_be_pruned ~keep phi] attempts to get rid of as many variables in [fv phi] but not
+    in [keep] as possible, and tries to eliminate variables not in [can_be_pruned] from the "pruned"
+    part of the formula *)
 
 val and_callee :
      (AbstractValue.t * ValueHistory.t) AbstractValue.Map.t
@@ -53,10 +53,13 @@ val and_callee :
 
 (** {2 Operations} *)
 
-type operand = LiteralOperand of IntLit.t | AbstractValueOperand of AbstractValue.t
+type operand = PulseFormula.operand =
+  | LiteralOperand of IntLit.t
+  | AbstractValueOperand of AbstractValue.t
+  | FunctionApplicationOperand of {f: PulseFormula.function_symbol; actuals: AbstractValue.t list}
 [@@deriving compare]
 
-val pp_operand : Formatter.t -> operand -> unit
+val and_equal : operand -> operand -> t -> t * new_eqs
 
 val eval_binop : AbstractValue.t -> Binop.t -> operand -> operand -> t -> t * new_eqs
 
@@ -87,5 +90,10 @@ val is_unsat_expensive :
 val has_no_assumptions : t -> bool
 (** whether the current path is independent of any calling context *)
 
-val get_var_repr : t -> AbstractValue.t -> AbstractValue.t
-(** get the canonical representative for the variable according to the equality relation *)
+val get_known_var_repr : t -> AbstractValue.t -> AbstractValue.t
+(** get the canonical representative for the variable according to the equality relation in the
+    "known" part of the formula *)
+
+val get_both_var_repr : t -> AbstractValue.t -> AbstractValue.t
+(** get the canonical representative for the variable according to the equality relation in the
+    "both" (known + pruned) part of the formula *)

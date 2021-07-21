@@ -25,6 +25,7 @@ type mode =
   | Javac of {compiler: Javac.compiler; prog: string; args: string list}
   | Maven of {prog: string; args: string list}
   | NdkBuild of {build_cmd: string list}
+  | Rebar3 of {args: string list}
   | XcodeBuild of {prog: string; args: string list}
   | XcodeXcpretty of {prog: string; args: string list}
 
@@ -45,7 +46,3 @@ val analyze_and_report :
 
 val run_epilogue : unit -> unit
 (** cleanup infer-out/ for Buck, generate stats, and generally post-process the results of a run *)
-
-val read_config_changed_files : unit -> SourceFile.Set.t option
-(** return the list of changed files as read from Config.changed_files_index and passed to
-    SourceFile.changed_sources_from_changed_files *)

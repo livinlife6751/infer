@@ -142,7 +142,12 @@ let all_checkers =
     ; callbacks=
         (let racerd_proc = interprocedural Payloads.Fields.racerd RacerDProcAnalysis.analyze in
          let racerd_file = file RacerDIssues Payloads.Fields.racerd RacerDFileAnalysis.analyze in
-         [(racerd_proc, Clang); (racerd_proc, Java); (racerd_file, Clang); (racerd_file, Java)] ) }
+         [ (racerd_proc, Clang)
+         ; (racerd_proc, Java)
+         ; (racerd_proc, CIL)
+         ; (racerd_file, Clang)
+         ; (racerd_file, Java)
+         ; (racerd_file, CIL) ] ) }
   ; { checker= Quandary
     ; callbacks=
         [ (interprocedural Payloads.Fields.quandary JavaTaintAnalysis.checker, Java)
@@ -150,7 +155,7 @@ let all_checkers =
   ; { checker= Pulse
     ; callbacks=
         (let pulse = interprocedural Payloads.Fields.pulse Pulse.checker in
-         [(pulse, Clang); (pulse, Java)] ) }
+         [(pulse, Clang); (pulse, Erlang); (pulse, Java)] ) }
   ; { checker= Impurity
     ; callbacks=
         (let impurity =

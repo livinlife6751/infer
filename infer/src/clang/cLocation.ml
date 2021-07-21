@@ -20,14 +20,19 @@ let clang_to_sil_location default_source_file clang_loc =
   Location.{line; col; file}
 
 
+let matches_skip_translation_headers =
+  match Config.skip_translation_headers with
+  | [] ->
+      fun _ -> false
+  | reg_list ->
+      let regex = Re.Str.regexp (String.concat ~sep:"\\|" reg_list) in
+      fun file -> Re.Str.string_match regex file 0
+
+
 let source_file_in_project source_file =
   let file_in_project = SourceFile.is_under_project_root source_file in
-  let rel_source_file = SourceFile.to_string source_file in
-  let file_should_be_skipped =
-    List.exists
-      ~f:(fun path -> String.is_prefix ~prefix:path rel_source_file)
-      Config.skip_translation_headers
-  in
+  let source_file_path = SourceFile.to_string source_file in
+  let file_should_be_skipped = matches_skip_translation_headers source_file_path in
   file_in_project && not file_should_be_skipped
 
 
@@ -80,12 +85,12 @@ let should_translate_lib translation_unit source_range decl_trans_context ~trans
   || should_translate translation_unit source_range decl_trans_context ~translate_when_used
 
 
-let is_file_blacklisted file =
+let is_file_block_listed file =
   let paths = Config.skip_analysis_in_path in
-  let is_file_blacklisted =
+  let is_file_block_listed =
     List.exists ~f:(fun path -> Str.string_match (Str.regexp ("^.*/" ^ path)) file 0) paths
   in
-  is_file_blacklisted
+  is_file_block_listed
 
 
 let location_of_source_range ?(pick_location = `Start) default_source_file source_range =

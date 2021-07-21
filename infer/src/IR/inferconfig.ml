@@ -30,9 +30,9 @@ let do_not_filter : filters =
 
 
 type filter_config =
-  { whitelist: string list
-  ; blacklist: string list
-  ; blacklist_files_containing: string list
+  { allow_list: string list
+  ; block_list: string list
+  ; block_list_files_containing: string list
   ; suppress_errors: string list }
 
 let is_matching patterns source_file =
@@ -317,36 +317,32 @@ let skip_translation_matcher =
   FileOrProcMatcher.load_matcher (patterns_of_json_with_key Config.patterns_skip_translation)
 
 
-let skip_implementation_matcher =
-  FileOrProcMatcher.load_matcher (patterns_of_json_with_key Config.patterns_skip_implementation)
-
-
 let load_filters () =
-  { whitelist= Config.report_path_regex_whitelist
-  ; blacklist= Config.report_path_regex_blacklist
-  ; blacklist_files_containing= Config.report_blacklist_files_containing
+  { allow_list= Config.report_path_regex_allow_list
+  ; block_list= Config.report_path_regex_block_list
+  ; block_list_files_containing= Config.report_block_list_files_containing
   ; suppress_errors= Config.report_suppress_errors }
 
 
 let filters_from_inferconfig inferconfig : filters =
   let path_filter =
-    let whitelist_filter : path_filter =
-      is_matching (List.map ~f:Str.regexp inferconfig.whitelist)
+    let allow_list_filter : path_filter =
+      is_matching (List.map ~f:Str.regexp inferconfig.allow_list)
     in
-    let blacklist_filter : path_filter =
-      is_matching (List.map ~f:Str.regexp inferconfig.blacklist)
+    let block_list_filter : path_filter =
+      is_matching (List.map ~f:Str.regexp inferconfig.block_list)
     in
-    let blacklist_files_containing_filter : path_filter =
+    let block_list_files_containing_filter : path_filter =
       FileContainsStringMatcher.create_matcher
         (List.map
            ~f:(fun s -> {contains= s; not_contains= None})
-           inferconfig.blacklist_files_containing)
+           inferconfig.block_list_files_containing)
     in
     function
     | source_file ->
-        whitelist_filter source_file
-        || (not (blacklist_filter source_file))
-           && not (blacklist_files_containing_filter source_file)
+        allow_list_filter source_file
+        || (not (block_list_filter source_file))
+           && not (block_list_files_containing_filter source_file)
   in
   let error_filter = function
     | error_name ->
@@ -359,17 +355,3 @@ let filters_from_inferconfig inferconfig : filters =
 (* Create filters based on configuration options *)
 let create_filters () =
   if not Config.filter_paths then do_not_filter else filters_from_inferconfig (load_filters ())
-
-
-(** This function loads and list the path that are being filtered by the analyzer. The results are
-    of the form: path/to/file.java -> true/false meaning that analysis results will be reported on
-    path/to/file.java or not *)
-let test () =
-  let filters = create_filters () in
-  let matches path = filters.path_filter path in
-  Sys.getcwd ()
-  |> Utils.directory_iter (fun path ->
-         if DB.is_source_file path then
-           let source_file = SourceFile.from_abs_path path in
-           let matching = matches source_file in
-           L.result "%s -> %b@." (SourceFile.to_rel_path source_file) matching )

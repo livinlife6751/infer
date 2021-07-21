@@ -107,6 +107,7 @@ and name =
           "MyClass<int>", "InnerClass" *)
   | CppClass of {name: QualifiedCppName.t; template_spec_info: template_spec_info; is_union: bool}
   | CSharpClass of CSharpClassName.t
+  | ErlangType of ErlangTypeName.t
   | JavaClass of JavaClassName.t
   | ObjcClass of QualifiedCppName.t * name list
       (** ObjC class that conforms to a list of protocols, e.g. id<NSFastEnumeration, NSCopying> *)
@@ -199,6 +200,8 @@ module Name : sig
 
   module CSharp : sig
     val from_string : string -> t
+
+    val is_class : t -> bool
   end
 
   module Java : sig
@@ -236,6 +239,8 @@ module Name : sig
     val from_qual_name : QualifiedCppName.t -> t
 
     val protocol_from_qual_name : QualifiedCppName.t -> t
+
+    val remodel_class : t option
   end
 
   module Set : PrettyPrintable.PPSet with type elt = t

@@ -287,15 +287,15 @@ let pp_jbir fmt jbir =
     fmt (JBir.print jbir)
 
 
-let trans_access = function
+let trans_access : _ -> ProcAttributes.access = function
   | `Default ->
-      PredSymb.Default
+      Default
   | `Public ->
-      PredSymb.Public
+      Public
   | `Private ->
-      PredSymb.Private
+      Private
   | `Protected ->
-      PredSymb.Protected
+      Protected
 
 
 let create_callee_attributes tenv program cn ms procname =
@@ -465,7 +465,7 @@ let create_cm_procdesc source_file program icfg cm proc_name =
     Procdesc.set_start_node procdesc start_node ;
     Procdesc.set_exit_node procdesc exit_node ;
     Some (procdesc, start_node, exit_node, exn_node, jbir_code)
-  with JBir.Subroutine ->
+  with JBir.Subroutine when Config.mask_sajwa_exceptions ->
     L.internal_error "create_procdesc raised JBir.Subroutine when translating %a in %a@."
       Procname.pp proc_name SourceFile.pp source_file ;
     None

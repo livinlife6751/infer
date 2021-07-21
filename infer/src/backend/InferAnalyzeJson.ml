@@ -56,6 +56,18 @@ let parse_cil_procname (json : Safe.t) : Procname.t =
   match method_name with
   | "__new" ->
       BuiltinDecl.__new
+  | "__new_array" ->
+      BuiltinDecl.__new_array
+  | "__set_locked_attribute" ->
+      BuiltinDecl.__set_locked_attribute
+  | "__delete_locked_attribute" ->
+      BuiltinDecl.__delete_locked_attribute
+  | "__instanceof" ->
+      BuiltinDecl.__instanceof
+  (* We exclude this for now as it would require significant effort unrelated to our support of
+     null deref/resource leak/thread safety violation detection. *)
+  (*| "__unwrap_exception" ->
+    BuiltinDecl.__unwrap_exception*)
   | _ ->
       let return_type =
         if String.equal Procname.CSharp.constructor_method_name method_name then None
@@ -66,11 +78,8 @@ let parse_cil_procname (json : Safe.t) : Procname.t =
       let params = List.map ~f:parse_cil_type_name param_types in
       let is_static = to_bool (member "is_static" json) in
       let method_kind = if is_static then Procname.CSharp.Static else Procname.CSharp.Non_Static in
-      let proc_name_cs =
-        Procname.(
-          make_csharp ~class_name ~return_type ~method_name ~parameters:params ~kind:method_kind)
-      in
-      proc_name_cs ()
+      Procname.make_csharp ~class_name ~return_type ~method_name ~parameters:params
+        ~kind:method_kind
 
 
 let parse_ikind (json : Safe.t) =
@@ -263,6 +272,9 @@ and parse_exp (json : Safe.t) =
     let e1 = parse_exp (member "left" json) in
     let e2 = parse_exp (member "right" json) in
     Exp.BinOp (op, e1, e2)
+  else if String.equal ekind "ExnExpression" then
+    let e = parse_exp (member "expression" json) in
+    Exp.Exn e
   else if String.equal ekind "ConstExpression" then Exp.Const (parse_constant json)
   else if String.equal ekind "CastExpression" then
     let t = parse_sil_type_name (member "type" json) in
@@ -284,8 +296,10 @@ and parse_exp (json : Safe.t) =
     match s with
     | "exact" ->
         Exp.Sizeof {typ= t; nbytes= None; dynamic_length= None; subtype= Subtype.exact}
+    | "instof" ->
+        Exp.Sizeof {typ= t; nbytes= None; dynamic_length= None; subtype= Subtype.subtypes_instof}
     | _ ->
-        Logging.die InternalError "Subtype in Sizeof instruction is not 'exact'"
+        Logging.die InternalError "Subtype in Sizeof instruction is not supported."
   else Logging.die InternalError "Unknown expression kind %s" ekind
 
 
@@ -357,13 +371,13 @@ let parse_method_annotation (json : Safe.t) : Annot.Method.t =
 let parse_captured_var (json : Safe.t) =
   let n = to_string (member "name" json) in
   let t = parse_sil_type_name (member "type" json) in
-  CapturedVar.make ~name:(Mangled.from_string n) ~typ:t ~capture_mode:Pvar.ByValue
+  CapturedVar.make ~name:(Mangled.from_string n) ~typ:t ~capture_mode:ByValue
 
 
 let parse_proc_attributes_var (json : Safe.t) =
   let n = to_string (member "name" json) in
   let t = parse_sil_type_name (member "type" json) in
-  (Mangled.from_string n, t, Pvar.ByValue)
+  (Mangled.from_string n, t, CapturedVar.ByValue)
 
 
 let parse_proc_attributes_formals (json : Safe.t) =
@@ -379,18 +393,18 @@ let parse_proc_attributes_locals (json : Safe.t) : ProcAttributes.var_data =
 
 
 let parse_proc_attributes (json : Safe.t) =
-  let access =
+  let access : ProcAttributes.access =
     match to_string (member "access" json) with
     | "Default" ->
-        PredSymb.Default
+        Default
     | "Public" ->
-        PredSymb.Public
+        Public
     | "Private" ->
-        PredSymb.Private
+        Private
     | "Protected" ->
-        PredSymb.Protected
+        Protected
     | atype ->
-        Logging.die InternalError "Unsupported access type %s" atype
+        L.die InternalError "Unsupported access type %s" atype
   in
   let captured = parse_list parse_captured_var (member "captured" json) in
   let formals = parse_list parse_proc_attributes_formals (member "formals" json) in

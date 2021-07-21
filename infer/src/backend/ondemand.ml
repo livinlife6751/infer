@@ -89,7 +89,8 @@ type global_state =
         (** the time elapsed doing [status] so far *)
   ; pulse_address_generator: PulseAbstractValue.State.t
   ; absint_state: AnalysisState.t
-  ; biabduction_state: State.t }
+  ; biabduction_state: State.t
+  ; taskbar_nesting: int }
 
 let save_global_state () =
   Timeout.suspend_existing_timeout ~keep_symop_total:false ;
@@ -105,7 +106,8 @@ let save_global_state () =
           (Mtime.span t0 (Mtime_clock.now ()), status) )
   ; pulse_address_generator= PulseAbstractValue.State.get ()
   ; absint_state= AnalysisState.save ()
-  ; biabduction_state= State.save_state () }
+  ; biabduction_state= State.save_state ()
+  ; taskbar_nesting= !nesting }
 
 
 let restore_global_state st =
@@ -126,7 +128,8 @@ let restore_global_state st =
         let new_t0 = Option.value_exn new_t0 in
         !ProcessPoolState.update_status new_t0 status ;
         (new_t0, status) ) ;
-  Timeout.resume_previous_timeout ()
+  Timeout.resume_previous_timeout () ;
+  nesting := st.taskbar_nesting
 
 
 (** reference to log errors only at the innermost recursive call *)
@@ -218,23 +221,24 @@ let run_proc_analysis exe_env ~caller_pdesc callee_pdesc =
     let backtrace = Printexc.get_backtrace () in
     IExn.reraise_if exn ~f:(fun () ->
         match exn with
-        | TaskSchedulerTypes.ProcnameAlreadyLocked _ ->
+        | RestartSchedulerException.ProcnameAlreadyLocked _ ->
             clear_actives () ;
             restore_global_state old_state ;
             true
-        | _ ->
+        | exn ->
             if not !logged_error then (
               let source_file = attributes.ProcAttributes.translation_unit in
               let location = attributes.ProcAttributes.loc in
-              L.internal_error "While analysing function %a:%a at %a@\n" SourceFile.pp source_file
-                Procname.pp callee_pname Location.pp_file_pos location ;
+              L.internal_error "While analysing function %a:%a at %a, raised %s@\n" SourceFile.pp
+                source_file Procname.pp callee_pname Location.pp_file_pos location
+                (Exn.to_string exn) ;
               logged_error := true ) ;
             restore_global_state old_state ;
             not Config.keep_going ) ;
     L.internal_error "@\nERROR RUNNING BACKEND: %a %s@\n@\nBACK TRACE@\n%s@?" Procname.pp
       callee_pname (Exn.to_string exn) backtrace ;
     match exn with
-    | SymOp.Analysis_failure_exe kind ->
+    | Exception.Analysis_failure_exe kind ->
         (* in production mode, log the timeout/crash and continue with the summary we had before
            the failure occurred *)
         log_error_and_continue exn initial_callee_summary kind

@@ -7,7 +7,6 @@
  *)
 
 open! IStd
-open PolyVariantEqual
 
 (** Database of analysis results *)
 
@@ -76,7 +75,7 @@ let filename_from_string s = s
 
 let filename_add_suffix fn s = fn ^ s
 
-let file_exists path = Sys.file_exists path = `Yes
+let file_exists path = ISys.file_exists path
 
 (** Return the time when a file was last modified. The file must exist. *)
 let file_modified_time ?(symlink = false) fname =
@@ -155,6 +154,3 @@ module Results_dir = struct
     let full_fname = Filename.concat (create dir_path) filename in
     Unix.openfile full_fname ~mode:Unix.[O_WRONLY; O_CREAT; O_TRUNC] ~perm:0o777
 end
-
-let is_source_file path =
-  List.exists ~f:(fun ext -> Filename.check_suffix path ext) Config.source_file_extentions

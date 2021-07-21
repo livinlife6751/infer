@@ -25,7 +25,7 @@ void call_create_null_path_then_deref_unconditionally_ok(int* p) {
   *p = 52;
 }
 
-void create_null_path2_ok(int* p) {
+void create_null_path2_latent(int* p) {
   int* q = NULL;
   if (p) {
     *p = 32;
@@ -96,7 +96,7 @@ void call_no_return_good() {
   free(x);
 }
 
-void FN_bug_after_malloc_result_test_bad(int* x) {
+void bug_after_malloc_result_test_bad(int* x) {
   x = (int*)malloc(sizeof(int));
   if (x) {
     int* y = NULL;
@@ -111,7 +111,82 @@ void bug_after_abduction_bad(int* x) {
 }
 
 void bug_with_allocation_bad(int* x) {
-  x = (int*)malloc(sizeof(int*));
+  x = (int*)malloc(sizeof(int));
   int* y = NULL;
   *y = 42;
+}
+
+void null_alias_bad(int* x) {
+  int* y = NULL;
+  x = (int*)malloc(sizeof(int*));
+  *x = 42;
+}
+
+void dereference(int* p) { *p; }
+
+void several_dereferences_ok(int* x, int* y, int* z) {
+  int* p = x;
+  *z = 52;
+  dereference(y);
+  *y = 42;
+  *x = 32;
+  *x = 777;
+  *y = 888;
+  *z = 999;
+}
+
+void report_correct_error_among_multiple_bad() {
+  int* p = NULL;
+  // the trace should complain about the first access inside the callee
+  several_dereferences_ok(p, p, p);
+}
+
+int unknown(int x);
+
+void unknown_is_functional_ok() {
+  int* p = NULL;
+  if (unknown(10) != unknown(10)) {
+    *p = 42;
+  }
+}
+
+void unknown_with_different_values_bad() {
+  int* p = NULL;
+  if (unknown(32) != unknown(52)) {
+    *p = 42;
+  }
+}
+
+void unknown_from_parameters_latent(int x) {
+  int* p = NULL;
+  if (unknown(x) == 999) {
+    *p = 42;
+  }
+}
+
+// is pruned away without the model
+void random_non_functional_bad() {
+  if (random() != random()) {
+    int* p = NULL;
+    *p = 42;
+  }
+}
+
+// quantifier elimination not powerful enough to discard [\exists v. y = v] in
+// the pruned part
+void FNlatent_random_modelled_bad(int y) {
+  int x = random();
+  if (x == y) {
+    int* p = NULL;
+    *p = 42;
+  }
+}
+
+void FP_arithmetic_weakness_ok() {
+  int x = random();
+  int y = random();
+  if (x < y && x > y) {
+    int* p = NULL;
+    *p = 42;
+  }
 }

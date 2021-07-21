@@ -417,7 +417,7 @@ let analyze_procedure ({InterproceduralAnalysis.proc_desc; tenv} as interproc) =
     let proc_data = {interproc; formals} in
     let loc = Procdesc.get_loc proc_desc in
     let set_lock_state_for_synchronized_proc astate =
-      if Procdesc.is_java_synchronized proc_desc then
+      if Procdesc.is_java_synchronized proc_desc || Procdesc.is_csharp_synchronized proc_desc then
         Domain.Lock.make_java_synchronized formals procname
         |> Option.to_list
         |> Domain.acquire ~tenv astate ~procname ~loc
@@ -627,7 +627,7 @@ let fold_reportable_summaries analyze_ondemand tenv clazz ~init ~f =
     |> Option.value_map ~default:[] ~f:(fun tstruct -> tstruct.Struct.methods)
   in
   let f acc mthd =
-    AnalysisCallbacks.proc_resolve_attributes mthd
+    Attributes.load mthd
     |> Option.value_map ~default:acc ~f:(fun other_attrs ->
            if should_report other_attrs then
              analyze_ondemand mthd
@@ -638,7 +638,7 @@ let fold_reportable_summaries analyze_ondemand tenv clazz ~init ~f =
   List.fold methods ~init ~f
 
 
-let is_private attrs = PredSymb.equal_access (ProcAttributes.get_access attrs) Private
+let is_private attrs = ProcAttributes.equal_access (ProcAttributes.get_access attrs) Private
 
 (*  Note about how many times we report a deadlock: normally twice, at each trace starting point.
     Due to the fact we look for deadlocks in the summaries of the class at the root of a path,
@@ -652,10 +652,7 @@ let is_private attrs = PredSymb.equal_access (ProcAttributes.get_access attrs) P
     [should_report_starvation] means [pair] is on the UI thread and not on a constructor *)
 let report_on_parallel_composition ~should_report_starvation tenv pattrs pair lock other_pname
     other_pair report_map =
-  if
-    is_private pattrs
-    || AnalysisCallbacks.proc_resolve_attributes other_pname |> Option.exists ~f:is_private
-  then report_map
+  if is_private pattrs || Attributes.load other_pname |> Option.exists ~f:is_private then report_map
   else
     let open Domain in
     let pname = ProcAttributes.get_proc_name pattrs in

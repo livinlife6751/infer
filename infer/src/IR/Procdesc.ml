@@ -57,6 +57,8 @@ module Node = struct
 
   type stmt_nodekind =
     | AssertionFailure
+    | AtomicCompareExchangeBranch
+    | AtomicExpr
     | BetweenJoinAndExit
     | BinaryConditionalStmtInit
     | BinaryOperatorStmt of string
@@ -76,6 +78,9 @@ module Node = struct
     | DeclStmt
     | DefineBody
     | Destruction of destruction_kind
+    | Erlang
+    | ErlangCaseClause
+    | ErlangExpression
     | ExceptionHandler
     | ExceptionsSink
     | ExprWithCleanups
@@ -284,6 +289,10 @@ module Node = struct
   let pp_stmt fmt = function
     | AssertionFailure ->
         F.pp_print_string fmt "Assertion failure"
+    | AtomicCompareExchangeBranch ->
+        F.pp_print_string fmt "Atomic compare exchange branch"
+    | AtomicExpr ->
+        F.pp_print_string fmt "AtomicExpr"
     | BetweenJoinAndExit ->
         F.pp_print_string fmt "between_join_and_exit"
     | BinaryConditionalStmtInit ->
@@ -322,6 +331,12 @@ module Node = struct
         F.pp_print_string fmt "define_body"
     | Destruction kind ->
         F.fprintf fmt "Destruction(%s)" (string_of_destruction_kind kind)
+    | Erlang ->
+        F.pp_print_string fmt "Erlang (generic)"
+    | ErlangCaseClause ->
+        F.pp_print_string fmt "ErlangCaseClause"
+    | ErlangExpression ->
+        F.pp_print_string fmt "ErlangExpression"
     | ExceptionHandler ->
         F.pp_print_string fmt "exception handler"
     | ExceptionsSink ->
@@ -513,10 +528,7 @@ let get_proc_name pdesc = pdesc.attributes.proc_name
 (** Return name and type of formal parameters *)
 let get_formals pdesc = pdesc.attributes.formals
 
-let get_pvar_formals pdesc =
-  let proc_name = get_proc_name pdesc in
-  get_formals pdesc |> List.map ~f:(fun (name, typ) -> (Pvar.mk name proc_name, typ))
-
+let get_pvar_formals pdesc = Pvar.get_pvar_formals pdesc.attributes
 
 let get_loc pdesc = pdesc.attributes.loc
 
@@ -542,12 +554,24 @@ let get_ret_var pdesc = Pvar.get_ret_pvar (get_proc_name pdesc)
 
 let get_ret_param_var pdesc = Pvar.get_ret_param_pvar (get_proc_name pdesc)
 
+let get_ret_type_from_signature pdesc =
+  if pdesc.attributes.has_added_return_param then
+    List.last pdesc.attributes.formals
+    |> Option.value_map
+         ~f:(fun (_, typ) ->
+           match typ.Typ.desc with Tptr (t, _) -> t | _ -> pdesc.attributes.ret_type )
+         ~default:pdesc.attributes.ret_type
+  else pdesc.attributes.ret_type
+
+
 let get_start_node pdesc = pdesc.start_node
 
 (** Return [true] iff the procedure is defined, and not just declared *)
 let is_defined pdesc = pdesc.attributes.is_defined
 
 let is_java_synchronized pdesc = pdesc.attributes.is_java_synchronized_method
+
+let is_csharp_synchronized pdesc = pdesc.attributes.is_csharp_synchronized_method
 
 let is_objc_arc_on pdesc = pdesc.attributes.is_objc_arc_on
 
@@ -786,7 +810,7 @@ let pp_captured_list fmt etl =
   List.iter
     ~f:(fun {CapturedVar.name; typ; capture_mode} ->
       Format.fprintf fmt " [%s] %a:%a"
-        (Pvar.string_of_capture_mode capture_mode)
+        (CapturedVar.string_of_capture_mode capture_mode)
         Mangled.pp name (Typ.pp_full Pp.text) typ )
     etl
 

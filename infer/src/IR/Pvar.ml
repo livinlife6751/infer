@@ -236,7 +236,7 @@ let mk (name : Mangled.t) (proc_name : Procname.t) : t =
 
 let get_ret_pvar pname = mk Ident.name_return pname
 
-let get_ret_param_pvar pname = mk Ident.name_return_param pname
+let get_ret_param_pvar pname = mk Mangled.return_param pname
 
 (** [mk_callee name proc_name] creates a program var for a callee function with the given function
     name *)
@@ -332,6 +332,10 @@ module Set = PrettyPrintable.MakePPSet (struct
   let pp = pp Pp.text
 end)
 
-type capture_mode = ByReference | ByValue [@@deriving compare, equal]
+let get_pvar_formals (attributes : ProcAttributes.t) =
+  let pname = attributes.proc_name in
+  List.map attributes.formals ~f:(fun (name, typ) -> (mk name pname, typ))
 
-let string_of_capture_mode = function ByReference -> "by ref" | ByValue -> "by value"
+
+let is_local_to_procedure proc_name pvar =
+  get_declaring_function pvar |> Option.exists ~f:(Procname.equal proc_name)
